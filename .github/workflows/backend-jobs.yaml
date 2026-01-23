@@ -18,8 +18,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r src/backend/requirements.txt
           pip install black flake8 pylint
-      - run: black --diff src/backend --exclude '/alembic/'
-      - run: flake8 src/backend --exclude alembic
+      - run: |
+          black --diff src/backend \
+          --line-length 88
+          --exclude '/(alembic|pytests)/'
+      - run: | 
+          flake8 src/backend \
+          --max-line-length 88 \
+          --exclude=alembic,tests
       - run: |
           pylint src/backend \
             --ignore=alembic \
@@ -40,4 +46,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r src/backend/requirements.txt pytest
       - run: echo "PYTHONPATH=src/backend" >> $GITHUB_ENV
+      - run: echo "DATABASE_URL=sqlite:///test.db" >> $GITHUB_ENV
       - run: pytest --maxfail=1 --disable-warnings -v
