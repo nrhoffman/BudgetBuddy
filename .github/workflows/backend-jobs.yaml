@@ -21,7 +21,6 @@ jobs:
       - run: |
           black --diff src/backend \
           --line-length 88
-          --exclude '/(alembic|pytests)/'
       - run: | 
           flake8 src/backend \
           --max-line-length 88 \
