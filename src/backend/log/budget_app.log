@@ -1,0 +1,8 @@
+2026-01-24 07:28:57,071 [INFO] budget_app: Logger initialized successfully
+2026-01-24 07:28:58,670 [INFO] budget_app: Database engine initialized
+2026-01-24 07:29:08,632 [INFO] budget_app: JWT expired
+2026-01-24 07:29:16,435 [INFO] budget_app: Login attempt for username=nhoff314
+2026-01-24 07:29:16,554 [INFO] budget_app: User e9eac002-4d97-4d3a-8c19-f0ee261f4bf3 logged in successfully
+2026-01-24 07:29:16,610 [INFO] budget_app: Fetched financial snapshot for user e9eac002-4d97-4d3a-8c19-f0ee261f4bf3
+2026-01-24 07:29:16,933 [INFO] budget_app: Creating bank link token for user e9eac002-4d97-4d3a-8c19-f0ee261f4bf3
+2026-01-24 07:29:16,962 [INFO] budget_app: Creating bank link token for user e9eac002-4d97-4d3a-8c19-f0ee261f4bf3

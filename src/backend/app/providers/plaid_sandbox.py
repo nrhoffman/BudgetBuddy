@@ -11,7 +11,9 @@ from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.item_public_token_exchange_request import  (
+    ItemPublicTokenExchangeRequest
+)
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from plaid.model.transactions_get_request import TransactionsGetRequest
 
@@ -87,7 +89,7 @@ class PlaidSandbox(BankingProvider):
             response = self.client.item_public_token_exchange(request)
             return response.access_token
         except ApiException as exc:
-            logger.error("Plaid public token exchange failed", exc_info=True)
+            logger.error(f"Plaid public token exchange failed: {exc}", exc_info=True)
             raise
 
     def get_accounts(self, access_token: str) -> List[Account]:
@@ -114,7 +116,7 @@ class PlaidSandbox(BankingProvider):
                 for acc in res.accounts
             ]
         except ApiException as exc:
-            logger.error("Failed to fetch Plaid accounts", exc_info=True)
+            logger.error(f"Failed to fetch Plaid accounts: {exc}", exc_info=True)
             raise
 
     def get_transactions(
@@ -157,7 +159,7 @@ class PlaidSandbox(BankingProvider):
             ]
         except ApiException as exc:
             logger.error(
-                f"Failed to fetch Plaid transactions for dates {start_date} "
+                f"Failed to fetch Plaid transactions for dates {start_date}: {exc}"
                 f"to {end_date}",
                 exc_info=True,
             )

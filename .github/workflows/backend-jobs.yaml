@@ -24,13 +24,13 @@ jobs:
       - run: | 
           flake8 src/backend \
           --max-line-length 88 \
-          --exclude=alembic,tests
+          --exclude=alembic,pytests,__init__.py
       - run: |
           pylint src/backend \
-            --ignore=alembic \
+            --ignore=alembic,pytests \
             --disable=too-few-public-methods \
             --max-line-length=88 \
-            --ignore-patterns=test_.*\.py
+            --ignore-patterns=test_.*\.py,__init__.py
 
 
   test:
