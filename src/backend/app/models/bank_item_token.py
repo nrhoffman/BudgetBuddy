@@ -3,9 +3,9 @@ SQLAlchemy ORM model for storing bank item tokens.
 """
 
 from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
