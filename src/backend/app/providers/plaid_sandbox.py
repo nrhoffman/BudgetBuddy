@@ -169,7 +169,9 @@ class PlaidSandbox(BankingProvider):
                             None) if pfc else None,
                         pending=getattr(txn, "pending", None),
                         iso_currency_code=getattr(txn, "iso_currency_code", None),
-                        unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
+                        unofficial_currency_code=getattr(txn,
+                                                         "unofficial_currency_code",
+                                                         None),
                     )
                 )
 

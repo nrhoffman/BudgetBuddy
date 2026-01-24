@@ -16,3 +16,4 @@
 ## Ideas
 - Show spending trends graph by category
 - Make a budget
+- Cache requirements for pytests and jest
