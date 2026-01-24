@@ -80,8 +80,7 @@ class BudgetService:
 
         return {"message": "Login successful",
                 "access_token": token,
-                "token_type": "bearer"
-        }
+                "token_type": "bearer"}
 
     # ------------------------------
     # User operations
@@ -110,8 +109,7 @@ class BudgetService:
 
             if "users_email_key" in error_msg:
                 logger.warning("User creation failed: email conflict for %s",
-                               user.email
-                )
+                               user.email)
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Email already exists",
@@ -119,16 +117,14 @@ class BudgetService:
 
             if "users_username_key" in error_msg:
                 logger.warning("User creation failed: username conflict for %s",
-                               user.username
-                )
+                               user.username)
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Username already exists",
                 ) from exc
 
             logger.warning("User creation failed: integrity error for %s",
-                           user.username
-            )
+                           user.username)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user data"
             ) from exc
@@ -138,8 +134,7 @@ class BudgetService:
             logger.error("Database error creating user %s: %s",
                          user.username,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create user"
@@ -200,16 +195,14 @@ class BudgetService:
             self.account_repo.add_account(account, user_id)
             logger.info("Account created: account_id=%s, user_id=%s",
                         account.id,
-                        user_id
-            )
+                        user_id)
             return {"message": "Account created", "account_id": account.id}
 
         except SQLAlchemyError as exc:
             logger.error("Failed to create account for user %s: %s",
                          user_id,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create account"
@@ -234,16 +227,14 @@ class BudgetService:
             if not account:
                 logger.warning("Account not found: account_id=%s, user_id=%s",
                                account_id,
-                               user_id
-                )
+                               user_id)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
                 )
 
             logger.info("Fetched account: account_id=%s, user_id=%s",
                         account_id,
-                        user_id
-            )
+                        user_id)
             return account
 
         except HTTPException:
@@ -255,8 +246,7 @@ class BudgetService:
                 account_id,
                 user_id,
                 exc,
-                exc_info=True
-            )
+                exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch account"
@@ -293,8 +283,7 @@ class BudgetService:
                          account_id,
                          user_id,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete account"
@@ -306,8 +295,7 @@ class BudgetService:
     def add_transaction(self,
                         user_id: str,
                         account_id: str,
-                        transaction: Transaction
-    ) -> dict:
+                        transaction: Transaction) -> dict:
         """
         Add a transaction to an account.
 
@@ -327,8 +315,7 @@ class BudgetService:
             if not account:
                 logger.warning(
                     "Transaction failed: account not found (account_id=%s, user_id=%s)",
-                    account_id, user_id
-                )
+                    account_id, user_id)
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                     detail="Account not found")
 
@@ -336,11 +323,9 @@ class BudgetService:
             account.transactions.append(transaction)
             logger.info(
                 "Transaction added: transaction_id=%s, account_id=%s",
-                transaction.transaction_id, account_id
-            )
+                transaction.transaction_id, account_id)
             return {"message": "Transaction added",
-                    "transaction_id": transaction.transaction_id
-            }
+                    "transaction_id": transaction.transaction_id}
 
         except HTTPException:
             raise
@@ -349,8 +334,7 @@ class BudgetService:
             logger.error("DB error adding transaction %s: %s",
                          transaction.transaction_id,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to add transaction"
@@ -381,8 +365,7 @@ class BudgetService:
             logger.error("Failed to fetch financial snapshot for user %s: %s",
                          user_id,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch financial snapshot"
@@ -449,27 +432,23 @@ class BudgetService:
                     transactions = self.banking_provider.get_transactions(
                         access_token=access_token,
                         start_date=start_date,
-                        end_date=end_date
-                    )
+                        end_date=end_date)
 
                     for txn in transactions:
                         self.add_transaction(user_id=user_id,
                                              account_id=account.id,
-                                             transaction=txn
-                        )
+                                             transaction=txn)
 
                     logger.info("Account %s linked with %s transactions",
                                 account.id,
-                                len(transactions)
-                    )
+                                len(transactions))
 
                 except Exception as txn_exc:
                     logger.error(
                         "Failed to add transactions for account %s: %s",
                         account.id,
                         txn_exc,
-                        exc_info=True
-                    )
+                        exc_info=True)
 
             logger.info("Linked %s bank accounts for user %s", len(accounts), user_id)
             return {"status": "linked", "accounts_added": len(accounts)}
@@ -478,8 +457,7 @@ class BudgetService:
             logger.error("Failed to link bank accounts for user %s: %s",
                          user_id,
                          exc,
-                         exc_info=True
-            )
+                         exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to link bank accounts"
