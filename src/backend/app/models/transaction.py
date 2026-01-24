@@ -41,8 +41,8 @@ class Transaction(BaseModel):
         "populate_by_name": True
     }
 
-    @field_validator("amount")  # pylint: disable=no-self-argument
-    def amount_not_zero(cls, v: Decimal) -> Decimal:
+    @field_validator("amount")
+    def amount_not_zero(cls, v: Decimal) -> Decimal:  # pylint: disable=no-self-argument
         """
         Ensure the transaction amount is not zero.
         """

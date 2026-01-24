@@ -327,9 +327,6 @@ class BudgetService:
             return {"message": "Transaction added",
                     "transaction_id": transaction.transaction_id}
 
-        except HTTPException:
-            raise
-
         except SQLAlchemyError as exc:
             logger.error("DB error adding transaction %s: %s",
                          transaction.transaction_id,
@@ -443,7 +440,7 @@ class BudgetService:
                                 account.id,
                                 len(transactions))
 
-                except Exception as txn_exc:
+                except SQLAlchemyError as txn_exc:
                     logger.error(
                         "Failed to add transactions for account %s: %s",
                         account.id,
