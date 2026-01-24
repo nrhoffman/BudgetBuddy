@@ -58,7 +58,7 @@ def create_user(
 
 
 @router.post("/check-login")
-def check_login(current_user=Depends(get_current_user)):
+def check_login(_current_user=Depends(get_current_user)):
     """
     Simple endpoint to verify user authentication.
 

@@ -1,13 +1,12 @@
 """
 Budget service layer for the BudgetBuddy application.
 
-This module defines the BudgetService class, which contains the core
-business logic for authentication, user management, account handling,
-transactions, and external banking provider integrations.
+This module defines the BudgetService class, which contains the core business logic
+for authentication, user management, account handling, transactions, and external
+banking provider integrations.
 """
 
 from datetime import datetime, timedelta
-
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -24,8 +23,8 @@ from app.repositories.user_repository import UserRepository
 
 class BudgetService:
     """
-    Core application service coordinating repositories and external
-    providers while enforcing business rules and error handling.
+    Core application service coordinating repositories and external providers while
+    enforcing business rules and error handling.
     """
 
     def __init__(
@@ -42,7 +41,7 @@ class BudgetService:
             session: SQLAlchemy session for database operations.
             user_repo: Repository responsible for user persistence.
             account_repo: Repository responsible for account persistence.
-            banking_provider: Optional external banking provider (e.g. Plaid).
+            banking_provider: Optional external banking provider (e.g., Plaid).
         """
         self.session = session
         self.user_repo = user_repo
@@ -79,11 +78,7 @@ class BudgetService:
         token = create_access_token(subject=user.id)
         logger.info("User %s logged in successfully", user.id)
 
-        return {
-            "message": "Login successful",
-            "access_token": token,
-            "token_type": "bearer",
-        }
+        return {"message": "Login successful", "access_token": token, "token_type": "bearer"}
 
     # ------------------------------
     # User operations
@@ -103,11 +98,7 @@ class BudgetService:
         """
         try:
             self.user_repo.add(user)
-            logger.info(
-                "User created: id=%s, username=%s",
-                user.id,
-                user.username,
-            )
+            logger.info("User created: id=%s, username=%s", user.id, user.username)
             return {"message": "User created successfully", "user_id": user.id}
 
         except IntegrityError as exc:
@@ -115,46 +106,30 @@ class BudgetService:
             error_msg = str(exc.orig)
 
             if "users_email_key" in error_msg:
-                logger.warning(
-                    "User creation failed: email conflict for %s",
-                    user.email,
-                )
+                logger.warning("User creation failed: email conflict for %s", user.email)
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Email already exists",
-                )
+                ) from exc
 
             if "users_username_key" in error_msg:
-                logger.warning(
-                    "User creation failed: username conflict for %s",
-                    user.username,
-                )
+                logger.warning("User creation failed: username conflict for %s", user.username)
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Username already exists",
-                )
+                ) from exc
 
-            logger.warning(
-                "User creation failed due to integrity error: %s",
-                user.username,
-            )
+            logger.warning("User creation failed: integrity error for %s", user.username)
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid user data",
-            )
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user data"
+            ) from exc
 
         except SQLAlchemyError as exc:
             self.session.rollback()
-            logger.error(
-                "Database error creating user %s: %s",
-                user.username,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Database error creating user %s: %s", user.username, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create user",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create user"
+            ) from exc
 
     def get_user(self, user_id: str) -> User:
         """
@@ -167,15 +142,14 @@ class BudgetService:
             User instance.
 
         Raises:
-            HTTPException: If the user is not found or retrieval fails.
+            HTTPException: If user is not found or retrieval fails.
         """
         try:
             user = self.user_repo.get_by_id(user_id)
             if not user:
                 logger.warning("User not found: user_id=%s", user_id)
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found",
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
 
             logger.info("Fetched user %s", user_id)
@@ -185,16 +159,11 @@ class BudgetService:
             raise
 
         except Exception as exc:
-            logger.error(
-                "Error fetching user %s: %s",
-                user_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Error fetching user %s: %s", user_id, exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch user",
-            )
+            ) from exc
 
     # ------------------------------
     # Account operations
@@ -209,30 +178,20 @@ class BudgetService:
 
         Returns:
             Confirmation message and account ID.
+
+        Raises:
+            HTTPException: If account creation fails.
         """
         try:
             self.account_repo.add_account(account, user_id)
-            logger.info(
-                "Account created: account_id=%s, user_id=%s",
-                account.id,
-                user_id,
-            )
-            return {
-                "message": "Account created",
-                "account_id": account.id,
-            }
+            logger.info("Account created: account_id=%s, user_id=%s", account.id, user_id)
+            return {"message": "Account created", "account_id": account.id}
 
         except SQLAlchemyError as exc:
-            logger.error(
-                "Failed to create account for user %s: %s",
-                user_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Failed to create account for user %s: %s", user_id, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create account",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create account"
+            ) from exc
 
     def get_account(self, account_id: str, user_id: str) -> Account:
         """
@@ -246,26 +205,17 @@ class BudgetService:
             Account instance.
 
         Raises:
-            HTTPException: If account is not found or retrieval fails.
+            HTTPException: If account not found or retrieval fails.
         """
         try:
             account = self.account_repo.get(account_id, user_id)
             if not account:
-                logger.warning(
-                    "Account not found: account_id=%s, user_id=%s",
-                    account_id,
-                    user_id,
-                )
+                logger.warning("Account not found: account_id=%s, user_id=%s", account_id, user_id)
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Account not found",
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
                 )
 
-            logger.info(
-                "Fetched account: account_id=%s, user_id=%s",
-                account_id,
-                user_id,
-            )
+            logger.info("Fetched account: account_id=%s, user_id=%s", account_id, user_id)
             return account
 
         except HTTPException:
@@ -273,16 +223,11 @@ class BudgetService:
 
         except Exception as exc:
             logger.error(
-                "Error fetching account %s for user %s: %s",
-                account_id,
-                user_id,
-                exc,
-                exc_info=True,
+                "Error fetching account %s for user %s: %s", account_id, user_id, exc, exc_info=True
             )
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch account",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch account"
+            ) from exc
 
     def remove_account(self, account_id: str, user_id: str) -> dict:
         """
@@ -294,49 +239,29 @@ class BudgetService:
 
         Returns:
             Confirmation message.
+
+        Raises:
+            HTTPException: If deletion fails.
         """
         try:
             self.account_repo.delete_account(account_id, user_id)
-            logger.info(
-                "Account %s deleted for user %s",
-                account_id,
-                user_id,
-            )
+            logger.info("Account %s deleted for user %s", account_id, user_id)
             return {"message": "Account deleted successfully"}
 
         except ValueError as exc:
-            logger.warning(
-                "Attempted to delete non-existing account %s: %s",
-                account_id,
-                exc,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(exc),
-            )
+            logger.warning("Attempted to delete non-existing account %s: %s", account_id, exc)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
         except Exception as exc:
-            logger.error(
-                "Failed to delete account %s for user %s: %s",
-                account_id,
-                user_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Failed to delete account %s for user %s: %s", account_id, user_id, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete account",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete account"
+            ) from exc
 
     # ------------------------------
     # Transaction operations
     # ------------------------------
-    def add_transaction(
-        self,
-        user_id: str,
-        account_id: str,
-        transaction: Transaction,
-    ) -> dict:
+    def add_transaction(self, user_id: str, account_id: str, transaction: Transaction) -> dict:
         """
         Add a transaction to an account.
 
@@ -347,48 +272,35 @@ class BudgetService:
 
         Returns:
             Confirmation message and transaction ID.
+
+        Raises:
+            HTTPException: If account not found or DB error occurs.
         """
         try:
             account = self.account_repo.get(account_id, user_id)
             if not account:
                 logger.warning(
-                    "Transaction failed: account not found "
-                    "(account_id=%s, user_id=%s)",
-                    account_id,
-                    user_id,
+                    "Transaction failed: account not found (account_id=%s, user_id=%s)",
+                    account_id, user_id
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Account not found",
-                )
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
             self.account_repo.add_transaction(account_id, transaction, user_id)
             account.transactions.append(transaction)
-
             logger.info(
                 "Transaction added: transaction_id=%s, account_id=%s",
-                transaction.transaction_id,
-                account_id,
+                transaction.transaction_id, account_id
             )
-            return {
-                "message": "Transaction added",
-                "transaction_id": transaction.transaction_id,
-            }
+            return {"message": "Transaction added", "transaction_id": transaction.transaction_id}
 
         except HTTPException:
             raise
 
         except SQLAlchemyError as exc:
-            logger.error(
-                "Database error adding transaction %s: %s",
-                transaction.transaction_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("DB error adding transaction %s: %s", transaction.transaction_id, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to add transaction",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add transaction"
+            ) from exc
 
     # ------------------------------
     # Fetch operations
@@ -402,28 +314,20 @@ class BudgetService:
 
         Returns:
             List of accounts with transactions.
+
+        Raises:
+            HTTPException: If DB error occurs.
         """
         try:
-            accounts = self.account_repo.get_all_accounts_with_transactions(
-                user_id
-            )
-            logger.info(
-                "Fetched financial snapshot for user %s",
-                user_id,
-            )
+            accounts = self.account_repo.get_all_accounts_with_transactions(user_id)
+            logger.info("Fetched financial snapshot for user %s", user_id)
             return accounts
 
         except SQLAlchemyError as exc:
-            logger.error(
-                "Failed to fetch financial snapshot for user %s: %s",
-                user_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Failed to fetch financial snapshot for user %s: %s", user_id, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch financial snapshot",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch financial snapshot"
+            ) from exc
 
     # ------------------------------
     # Banking / external provider operations
@@ -437,12 +341,14 @@ class BudgetService:
 
         Returns:
             Provider-specific link token.
+
+        Raises:
+            HTTPException: If banking provider not configured.
         """
         if not self.banking_provider:
             logger.error("Banking provider not configured")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Banking provider not configured",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Banking provider not configured"
             )
 
         logger.info("Creating bank link token for user %s", user_id)
@@ -458,18 +364,18 @@ class BudgetService:
 
         Returns:
             Summary of linked accounts.
+
+        Raises:
+            HTTPException: If provider not configured or operation fails.
         """
         if not self.banking_provider:
             logger.error("Banking provider not configured")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Banking provider not configured",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Banking provider not configured"
             )
 
         try:
-            access_token = self.banking_provider.exchange_public_token(
-                public_token
-            )
+            access_token = self.banking_provider.exchange_public_token(public_token)
             accounts = self.banking_provider.get_accounts(access_token)
 
             end_date = datetime.today().date()
@@ -480,50 +386,24 @@ class BudgetService:
 
                 try:
                     transactions = self.banking_provider.get_transactions(
-                        access_token=access_token,
-                        start_date=start_date,
-                        end_date=end_date,
+                        access_token=access_token, start_date=start_date, end_date=end_date
                     )
 
                     for txn in transactions:
-                        self.add_transaction(
-                            user_id=user_id,
-                            account_id=account.id,
-                            transaction=txn,
-                        )
+                        self.add_transaction(user_id=user_id, account_id=account.id, transaction=txn)
 
-                    logger.info(
-                        "Account %s linked with %s transactions",
-                        account.id,
-                        len(transactions),
-                    )
+                    logger.info("Account %s linked with %s transactions", account.id, len(transactions))
 
-                except Exception as txn_err:
+                except Exception as txn_exc:
                     logger.error(
-                        "Failed to add transactions for account %s: %s",
-                        account.id,
-                        txn_err,
-                        exc_info=True,
+                        "Failed to add transactions for account %s: %s", account.id, txn_exc, exc_info=True
                     )
 
-            logger.info(
-                "Linked %s bank accounts for user %s",
-                len(accounts),
-                user_id,
-            )
-            return {
-                "status": "linked",
-                "accounts_added": len(accounts),
-            }
+            logger.info("Linked %s bank accounts for user %s", len(accounts), user_id)
+            return {"status": "linked", "accounts_added": len(accounts)}
 
         except Exception as exc:
-            logger.error(
-                "Failed to link bank accounts for user %s: %s",
-                user_id,
-                exc,
-                exc_info=True,
-            )
+            logger.error("Failed to link bank accounts for user %s: %s", user_id, exc, exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to link bank accounts",
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to link bank accounts"
+            ) from exc

@@ -69,7 +69,9 @@ class PlaidSandbox(BankingProvider):
             return response.link_token
         except ApiException as exc:
             logger.error(
-                f"Plaid link token creation failed for user {user_id}: {exc}",
+                "Plaid link token creation failed for user %s: %s",
+                user_id,
+                exc,
                 exc_info=True,
             )
             raise
@@ -89,7 +91,7 @@ class PlaidSandbox(BankingProvider):
             response = self.client.item_public_token_exchange(request)
             return response.access_token
         except ApiException as exc:
-            logger.error(f"Plaid public token exchange failed: {exc}", exc_info=True)
+            logger.error("Plaid public token exchange failed: %s", exc, exc_info=True)
             raise
 
     def get_accounts(self, access_token: str) -> List[Account]:
@@ -116,7 +118,7 @@ class PlaidSandbox(BankingProvider):
                 for acc in res.accounts
             ]
         except ApiException as exc:
-            logger.error(f"Failed to fetch Plaid accounts: {exc}", exc_info=True)
+            logger.error("Failed to fetch Plaid accounts: %s", exc, exc_info=True)
             raise
 
     def get_transactions(
@@ -159,8 +161,10 @@ class PlaidSandbox(BankingProvider):
             ]
         except ApiException as exc:
             logger.error(
-                f"Failed to fetch Plaid transactions for dates {start_date}: {exc}"
-                f"to {end_date}",
+                "Failed to fetch Plaid transactions for dates %s: %s to %s",
+                start_date,
+                end_date,
+                exc,
                 exc_info=True,
             )
             raise

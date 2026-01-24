@@ -41,5 +41,5 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except (UnknownHashError, ValueError) as exc:
-        logger.error(f"Password hash verification failed: {exc}", exc_info=True)
+        logger.error("Password hash verification failed: %s", exc, exc_info=True)
         return False

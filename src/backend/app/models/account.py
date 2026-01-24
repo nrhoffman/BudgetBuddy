@@ -59,7 +59,7 @@ def parse_account_type(value) -> AccountType:
     try:
         return AccountType(str(value).strip().lower())
     except ValueError:
-        logger.debug(f"Unknown account type encountered: {value}")
+        logger.debug("Unknown account type encountered: %s", value)
         return AccountType.OTHER
 
 
@@ -76,5 +76,5 @@ def parse_account_subtype(value) -> AccountSubType:
     try:
         return AccountSubType(str(value).strip().lower())
     except ValueError:
-        logger.debug(f"Unknown account subtype encountered: {value}")
+        logger.debug("Unknown account subtype encountered: %s", value)
         return AccountSubType.OTHER

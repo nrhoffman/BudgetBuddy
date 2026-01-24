@@ -1,3 +1,10 @@
+"""
+JWT authentication utilities.
+
+This module provides helpers for creating and validating JSON Web Tokens
+used for authenticating users in the BudgetBuddy application.
+"""
+
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -17,15 +24,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 def create_access_token(subject: str) -> str:
     """
-    Create a JWT access token for a given subject (usually a user ID or username).
+    Create a JWT access token for a given subject.
 
-    The token will expire in ACCESS_TOKEN_EXPIRE_MINUTES.
+    The token expires after ACCESS_TOKEN_EXPIRE_MINUTES.
 
     Args:
-        subject (str): The unique identifier for the token's subject.
+        subject: Unique identifier for the token subject (usually user ID).
 
     Returns:
-        str: The encoded JWT access token.
+        Encoded JWT access token.
     """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -40,26 +47,27 @@ def create_access_token(subject: str) -> str:
 
 def decode_jwt(token: str) -> dict:
     """
-    Decode a JWT and return its payload.
-
-    Raises HTTPException if the token is expired or invalid.
+    Decode and validate a JWT.
 
     Args:
-        token (str): The JWT string to decode.
+        token: Encoded JWT string.
 
     Returns:
-        dict: The decoded JWT payload.
+        Decoded JWT payload.
+
+    Raises:
+        HTTPException: If the token is expired or invalid.
     """
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-    except ExpiredSignatureError:
+    except ExpiredSignatureError as exc:
         logger.info("JWT expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
     except JWTError as exc:
         logger.warning("Invalid JWT: %s", exc)
@@ -67,4 +75,4 @@ def decode_jwt(token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc

@@ -1,3 +1,5 @@
+"""Base SQLAlchemy declarative class for ORM models."""
+
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -8,4 +10,3 @@ class Base(DeclarativeBase):
     Inherit from this class when defining ORM models to ensure consistent
     metadata and mapping configuration.
     """
-    pass
