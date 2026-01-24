@@ -28,7 +28,10 @@ if not logger.hasHandlers():
     )
 
     # Console handler
-    console_logging = os.getenv("LOG_TO_CONSOLE", "true").lower() in ("1", "true", "yes")
+    console_logging = os.getenv(
+        "LOG_TO_CONSOLE",
+        "true"
+    ).lower() in ("1", "true", "yes")
     if console_logging:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)

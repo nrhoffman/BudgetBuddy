@@ -7,7 +7,7 @@ timestamps, merchant info, categories, and currency codes.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, String, Numeric, ForeignKey, Boolean
+from sqlalchemy import String, Numeric, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base

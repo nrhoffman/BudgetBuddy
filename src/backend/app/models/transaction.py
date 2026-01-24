@@ -4,10 +4,11 @@ Pydantic model for representing a financial transaction.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.logger import logger
+
 
 class Transaction(BaseModel):
     """
