@@ -142,23 +142,29 @@ class PlaidSandbox(BankingProvider):
                 end_date=end_date,
             )
             res = self.client.transactions_get(request)
-            return [
-                Transaction(
-                    transaction_id=txn.transaction_id,
-                    account_id=txn.account_id,
-                    name=txn.name,
-                    merchant_name=getattr(txn, "merchant_name", None),
-                    amount=txn.amount,
-                    date=txn.date,
-                    category=getattr(txn, "category", None),
-                    pending=getattr(txn, "pending", None),
-                    iso_currency_code=getattr(txn, "iso_currency_code", None),
-                    unofficial_currency_code=getattr(
-                        txn, "unofficial_currency_code", None
-                    ),
+
+            transactions: List[Transaction] = []
+            for txn in res.transactions:
+                pfc = getattr(txn, "personal_finance_category", None)
+
+                transactions.append(
+                    Transaction(
+                        transaction_id=txn.transaction_id,
+                        account_id=txn.account_id,
+                        name=txn.name,
+                        merchant_name=getattr(txn, "merchant_name", None),
+                        amount=txn.amount,
+                        date=txn.date,
+                        category_primary=getattr(pfc, "primary", None) if pfc else None,
+                        category_detailed=getattr(pfc, "detailed", None) if pfc else None,
+                        category_confidence_level=getattr(pfc, "confidence_level", None) if pfc else None,
+                        pending=getattr(txn, "pending", None),
+                        iso_currency_code=getattr(txn, "iso_currency_code", None),
+                        unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
+                    )
                 )
-                for txn in res.transactions
-            ]
+
+            return transactions
         except ApiException as exc:
             logger.error(
                 "Failed to fetch Plaid transactions for dates %s: %s to %s",

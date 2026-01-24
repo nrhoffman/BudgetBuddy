@@ -27,7 +27,9 @@ class TransactionORM(Base):
 
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     merchant_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    category: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    category_primary: Mapped[str | None] = mapped_column(String, nullable=True)
+    category_detailed: Mapped[str | None] = mapped_column(String, nullable=True)
+    category_confidence_level: Mapped[str | None] = mapped_column(String, nullable=True)
 
     pending: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     iso_currency_code: Mapped[str | None] = mapped_column(String, nullable=True)

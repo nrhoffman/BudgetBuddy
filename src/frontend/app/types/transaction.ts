@@ -14,8 +14,10 @@ export type Transaction = {
   name: string;
   /** Merchant name, if available */
   merchant_name: string;
-  /** Categories assigned to the transaction */
-  category: string[];
+  /** Personal finance category fields */
+  category_primary: string;
+  category_detailed: string;
+  category_confidence_level: string;
   /** Whether the transaction is pending */
   pending: boolean;
   /** ISO currency code (optional) */

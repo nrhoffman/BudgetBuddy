@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.logger import logger
 
-
 class Transaction(BaseModel):
     """
     Represents a financial transaction.
@@ -32,7 +31,9 @@ class Transaction(BaseModel):
     date: datetime
     name: Optional[str] = None
     merchant_name: Optional[str] = None
-    category: Optional[List[str]] = None
+    category_primary: Optional[str] = None
+    category_detailed: Optional[str] = None
+    category_confidence_level: Optional[str] = None
     pending: Optional[bool] = None
     iso_currency_code: Optional[str] = None
     unofficial_currency_code: Optional[str] = None

@@ -35,7 +35,7 @@ def normalize_datetime(dt):
 # Parametrized transaction creation test
 # -----------------------
 @pytest.mark.parametrize(
-    "txn_id, account_id, amount, date, name, merchant_name, category, pending, iso_code, unofficial_code",
+    "txn_id, account_id, amount, date, name, merchant_name, category_primary, category_detailed, category_confidence_level, pending, iso_code, unofficial_code",
     [
         (
             "txn_001",
@@ -44,7 +44,9 @@ def normalize_datetime(dt):
             datetime(2026, 1, 23, 12, 0, tzinfo=timezone.utc),
             "Groceries",
             "Whole Foods",
-            ["Food", "Groceries"],
+            "FOOD_AND_DRINK",
+            "FOOD_AND_DRINK_GROCERIES",
+            "HIGH",
             False,
             "USD",
             None,
@@ -56,7 +58,9 @@ def normalize_datetime(dt):
             datetime(2026, 1, 24, 15, 30, tzinfo=timezone.utc),
             "Refund",
             "Amazon",
-            ["Shopping"],
+            "SHOPPING",
+            "SHOPPING_ONLINE",
+            "LOW",
             False,
             "USD",
             None,
@@ -66,6 +70,8 @@ def normalize_datetime(dt):
             "acc_002",
             200.0,
             datetime(2026, 1, 25, 9, 45, tzinfo=timezone.utc),
+            None,
+            None,
             None,
             None,
             None,
@@ -83,7 +89,9 @@ def test_transaction_orm_creation(
     date,
     name,
     merchant_name,
-    category,
+    category_primary,
+    category_detailed,
+    category_confidence_level,
     pending,
     iso_code,
     unofficial_code,
@@ -105,7 +113,9 @@ def test_transaction_orm_creation(
         date=date,
         name=name,
         merchant_name=merchant_name,
-        category=category,
+        category_primary=category_primary,
+        category_detailed=category_detailed,
+        category_confidence_level=category_confidence_level,
         pending=pending,
         iso_currency_code=iso_code,
         unofficial_currency_code=unofficial_code,
@@ -124,7 +134,9 @@ def test_transaction_orm_creation(
 
     assert saved_txn.name == name
     assert saved_txn.merchant_name == merchant_name
-    assert saved_txn.category == category
+    assert saved_txn.category_primary == category_primary
+    assert saved_txn.category_detailed == category_detailed
+    assert saved_txn.category_confidence_level == category_confidence_level
     assert saved_txn.pending == pending
     assert saved_txn.iso_currency_code == iso_code
     assert saved_txn.unofficial_currency_code == unofficial_code
@@ -154,6 +166,5 @@ def test_transaction_orm_default_date(db_session):
 
     saved_txn = db_session.query(TransactionORM).filter_by(id="txn_010").first()
     assert saved_txn.date is not None
-
     saved_date = normalize_datetime(saved_txn.date)
     assert (datetime.now(timezone.utc) - saved_date).total_seconds() < 5

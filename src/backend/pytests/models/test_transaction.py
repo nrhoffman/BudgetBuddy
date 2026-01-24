@@ -8,7 +8,7 @@ from app.models.transaction import Transaction
 # Parametrize valid transactions with different optional fields
 # -----------------------
 @pytest.mark.parametrize(
-    "txn_data, expected_name, expected_merchant, expected_category, expected_pending, expected_iso",
+    "txn_data, expected_name, expected_merchant, expected_primary, expected_detailed, expected_confidence, expected_pending, expected_iso",
     [
         (
             {
@@ -18,11 +18,19 @@ from app.models.transaction import Transaction
                 "date": datetime(2026, 1, 23, 12, 0),
                 "name": "Payment",
                 "merchant_name": "Amazon",
-                "category": ["Shopping", "Online"],
+                "category_primary": "SHOPPING",
+                "category_detailed": "SHOPPING_ONLINE",
+                "category_confidence_level": "HIGH",
                 "pending": False,
                 "iso_currency_code": "USD"
             },
-            "Payment", "Amazon", ["Shopping", "Online"], False, "USD"
+            "Payment",
+            "Amazon",
+            "SHOPPING",
+            "SHOPPING_ONLINE",
+            "HIGH",
+            False,
+            "USD"
         ),
         (
             {
@@ -31,7 +39,13 @@ from app.models.transaction import Transaction
                 "amount": Decimal("50.25"),
                 "date": datetime(2026, 1, 23, 12, 0),
             },
-            None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None
         ),
         (
             {
@@ -40,12 +54,20 @@ from app.models.transaction import Transaction
                 "amount": Decimal("10.00"),
                 "date": datetime(2026, 1, 23, 12, 0),
                 "name": "Subscription",
+                "category_primary": "SERVICES",
             },
-            "Subscription", None, None, None, None
+            "Subscription",
+            None,
+            "SERVICES",
+            None,
+            None,
+            None,
+            None
         )
     ]
 )
-def test_transaction_valid(txn_data, expected_name, expected_merchant, expected_category, expected_pending, expected_iso):
+def test_transaction_valid(txn_data, expected_name, expected_merchant, expected_primary,
+                           expected_detailed, expected_confidence, expected_pending, expected_iso):
     txn = Transaction(**txn_data)
     assert txn.transaction_id == txn_data["id"]
     assert txn.account_id == txn_data["account_id"]
@@ -54,7 +76,9 @@ def test_transaction_valid(txn_data, expected_name, expected_merchant, expected_
 
     assert txn.name == expected_name
     assert txn.merchant_name == expected_merchant
-    assert txn.category == expected_category
+    assert txn.category_primary == expected_primary
+    assert txn.category_detailed == expected_detailed
+    assert txn.category_confidence_level == expected_confidence
     assert txn.pending == expected_pending
     assert txn.iso_currency_code == expected_iso
     assert txn.unofficial_currency_code is None

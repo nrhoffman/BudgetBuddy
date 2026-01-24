@@ -17,16 +17,21 @@ export default function TransactionsPanel({ account }: Props) {
     );
   }
 
+  const sortedTransactions = [...account.transactions].sort((a, b) => {
+    return new Date(b.date).getTime() - new Date(a.date).getTime();
+  });
+
+
   return (
     <div className="col-span-8 bg-white rounded shadow p-6">
       <h2 className="text-xl font-semibold mb-2">{account.name}</h2>
       <p className="text-gray-600 mb-4">Balance: ${account.balance}</p>
 
-      {account.transactions.length === 0 ? (
+      {sortedTransactions.length === 0 ? (
         <p className="text-gray-500 italic">No transactions available.</p>
       ) : (
         <ul className="space-y-2">
-          {account.transactions.map((tx, idx) => (
+          {sortedTransactions.map((tx, idx) => (
             <TransactionCard key={`${tx.transaction_id}-${idx}`} transaction={tx} />
           ))}
         </ul>
