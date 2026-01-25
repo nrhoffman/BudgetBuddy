@@ -92,8 +92,13 @@ def test_get_account(account_service, mock_account_repo, account_exists, expecte
 )
 def test_update_account(account_service, mock_account_repo, account_name, balance, expected_exception):
     if expected_exception is None:
-        result = account_service.update_account("acc_1", "user_1", account_name, balance)
-        assert result is None
+        result = account_service.update_account(
+            "acc_1",
+            "user_1",
+            account_name,
+            balance,
+        )
+        assert result["message"] == "Account updated successfully"
     else:
         with pytest.raises(expected_exception):
             account_service.update_account("acc_1", "user_1", account_name, balance)

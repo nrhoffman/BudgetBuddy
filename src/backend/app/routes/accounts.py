@@ -49,9 +49,9 @@ def update_account(
         Result of the account update operation.
     """
     return budget_service.update_account(
-        account_id = account_id,
-        user_id = current_user.id,
-        account_name = account_name)
+        account_id=account_id,
+        user_id=current_user.id,
+        account_name=account_name)
 
 
 @router.delete("/remove-account/{account_id}")
