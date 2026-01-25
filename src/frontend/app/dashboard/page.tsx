@@ -8,7 +8,7 @@ import Banner from "../components/banner";
 import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import TransactionsPanel from "../components/dashboard/TransactionsPanel";
 
-import { useFetchAccounts } from "../hooks/useFetchAccounts";
+import { useAccounts } from "../hooks/useAccounts";
 import { useAuthCheck } from "../hooks/useAuthCheck";
 
 const PlaidLinkButton = dynamic(
@@ -24,8 +24,10 @@ export default function DashboardPage() {
     loading: accountsLoading,
     fetchAccounts,
     deleteAccount,
+    editAccount,
     deleting,
-  } = useFetchAccounts();
+    editing,
+  } = useAccounts();
 
   const [selectedAccount, setSelectedAccount] = useState<typeof accounts[number] | null>(null);
   const [linkingAccounts, setLinkingAccounts] = useState(false);
@@ -92,12 +94,14 @@ export default function DashboardPage() {
               <div className="grid grid-cols-12 gap-6">
                 <AccountsSidebar
                   accounts={accounts.filter(
-                    (account) => account.type === "depository" || account.type === "credit"
+                    (account) => account.type === "depository"
                   )}
                   selectedAccount={selectedAccount}
                   onSelectAccount={setSelectedAccount}
                   onDeleteAccount={deleteAccount}
+                  onEditAccount={editAccount}
                   deleting={deleting}
+                  editing={editing}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -122,7 +126,9 @@ export default function DashboardPage() {
                   selectedAccount={selectedAccount}
                   onSelectAccount={setSelectedAccount}
                   onDeleteAccount={deleteAccount}
+                  onEditAccount={editAccount}
                   deleting={deleting}
+                  editing={editing}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -147,7 +153,9 @@ export default function DashboardPage() {
                   selectedAccount={selectedAccount}
                   onSelectAccount={setSelectedAccount}
                   onDeleteAccount={deleteAccount}
+                  onEditAccount={editAccount}
                   deleting={deleting}
+                  editing={editing}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -165,15 +173,17 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-12 gap-6">
-                <AccountsSidebar
-                  accounts={accounts.filter(
-                    (account) => account.type === "investment"
-                  )}
-                  selectedAccount={selectedAccount}
-                  onSelectAccount={setSelectedAccount}
-                  onDeleteAccount={deleteAccount}
-                  deleting={deleting}
-                />
+                  <AccountsSidebar
+                    accounts={accounts.filter(
+                      (account) => account.type === "investment"
+                    )}
+                    selectedAccount={selectedAccount}
+                    onSelectAccount={setSelectedAccount}
+                    onDeleteAccount={deleteAccount}
+                    onEditAccount={editAccount}
+                    deleting={deleting}
+                    editing={editing}
+                  />
                 <TransactionsPanel account={selectedAccount} />
               </div>
             </div>

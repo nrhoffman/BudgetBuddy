@@ -13,7 +13,7 @@ def test_client():
     return TestClient(app)
 
 @pytest.fixture
-def mock_budget_service():
+def mock_auth_service():
     return MagicMock()
 
 @pytest.fixture
@@ -27,9 +27,9 @@ def fake_user():
     )
 
 @pytest.fixture(autouse=True)
-def override_dependencies(mock_budget_service, fake_user):
+def override_dependencies(mock_auth_service, fake_user):
     app.dependency_overrides = {
-        auth.get_budget_service: lambda: mock_budget_service,
+        auth.get_auth_service: lambda: mock_auth_service,
         auth.get_current_user: lambda: fake_user,
     }
     yield
@@ -45,11 +45,11 @@ def override_dependencies(mock_budget_service, fake_user):
         ({"username": "bob", "password": "wrongpw"}, 401, {"detail": "Invalid credentials"}),
     ]
 )
-def test_login_param(test_client, mock_budget_service, login_data, expected_status, expected_response):
+def test_login_param(test_client, mock_auth_service, login_data, expected_status, expected_response):
     if expected_status == 200:
-        mock_budget_service.login.return_value = expected_response
+        mock_auth_service.login.return_value = expected_response
     else:
-        mock_budget_service.login.side_effect = HTTPException(status_code=401, detail="Invalid credentials")
+        mock_auth_service.login.side_effect = HTTPException(status_code=401, detail="Invalid credentials")
 
     response = test_client.post("/api/auth/login", json=login_data)
     assert response.status_code == expected_status
@@ -65,7 +65,7 @@ def test_login_param(test_client, mock_budget_service, login_data, expected_stat
         {"username": "bob", "email": "bob@example.com", "password": "pw456", "role": "admin"},
     ]
 )
-def test_sign_up_param(test_client, mock_budget_service, user_data):
+def test_sign_up_param(test_client, mock_auth_service, user_data):
     created_user = User(
         id=str(uuid4()),
         username=user_data["username"],
@@ -73,7 +73,7 @@ def test_sign_up_param(test_client, mock_budget_service, user_data):
         hashed_password="hashed_pw",
         role=UserRole(user_data["role"])
     )
-    mock_budget_service.create_user.return_value = created_user
+    mock_auth_service.create_user.return_value = created_user
 
     response = test_client.post("/api/auth/sign-up", json=user_data)
     assert response.status_code == 200

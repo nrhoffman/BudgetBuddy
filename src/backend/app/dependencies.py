@@ -1,6 +1,5 @@
 """
-Dependency providers for FastAPI routes, including DB session, BudgetService,
-and authenticated user retrieval.
+Dependency providers for FastAPI routes, including DB session, services, and auth.
 """
 
 from fastapi import Depends, HTTPException, status
@@ -14,17 +13,19 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.account_repository import AccountRepository
 from app.models.user import User
 from app.providers.plaid_sandbox import PlaidSandbox
-from app.services.budget_service import BudgetService
+from app.services.account_service import AccountService
+from app.services.auth_service import AuthService
+from app.services.banking_service import BankingService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def get_db() -> Session:
     """
-    Provide a SQLAlchemy database session and ensure it is closed after use.
+    Yield a SQLAlchemy database session and ensure it is closed after use.
 
     Yields:
-        Session: A SQLAlchemy DB session.
+        Session: A SQLAlchemy database session.
     """
     db = SESSIONLOCAL()
     try:
@@ -33,22 +34,47 @@ def get_db() -> Session:
         db.close()
 
 
-def get_budget_service(db: Session = Depends(get_db)) -> BudgetService:
+def get_account_service(db: Session = Depends(get_db)) -> AccountService:
     """
-    Provide a fully initialized BudgetService instance with repositories
-    and banking provider.
+    Provide a fully initialized AccountService with its repository.
 
     Args:
         db: SQLAlchemy session dependency.
 
     Returns:
-        BudgetService instance.
+        AccountService: Initialized service.
     """
-    return BudgetService(
-        session=db,
-        user_repo=UserRepository(db),
-        account_repo=AccountRepository(db),
-        banking_provider=PlaidSandbox(),
+    return AccountService(account_repo=AccountRepository(db))
+
+
+def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+    """
+    Provide a fully initialized AuthService with its repository.
+
+    Args:
+        db: SQLAlchemy session dependency.
+
+    Returns:
+        AuthService: Initialized service.
+    """
+    return AuthService(user_repo=UserRepository(db))
+
+
+def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
+    """
+    Provide a fully initialized BankingService with AccountService and
+    PlaidSandbox provider.
+
+    Args:
+        db: SQLAlchemy session dependency.
+
+    Returns:
+        BankingService: Initialized service with provider.
+    """
+    account_service = AccountService(account_repo=AccountRepository(db))
+    banking_provider = PlaidSandbox()
+    return BankingService(
+        account_service=account_service, banking_provider=banking_provider
     )
 
 
@@ -57,17 +83,17 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """
-    Extract and return the currently authenticated user based on JWT.
+    Retrieve the currently authenticated user based on JWT token.
 
     Args:
-        token: OAuth2 bearer token from the request header.
+        token: OAuth2 bearer token from request header.
         db: SQLAlchemy session dependency.
 
     Raises:
-        HTTPException: If token is invalid or user is not found.
+        HTTPException: If token is invalid or user not found.
 
     Returns:
-        User: Authenticated user model instance.
+        User: Authenticated user instance.
     """
     payload = decode_jwt(token)
     user_id = payload.get("sub")

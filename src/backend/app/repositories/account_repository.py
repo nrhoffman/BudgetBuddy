@@ -2,7 +2,7 @@
 Repository layer for accounts and transactions.
 """
 
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.orm import joinedload, Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -185,33 +185,52 @@ class AccountRepository:
         )
         session.execute(stmt)
 
-    def update(self, account_id: str, account: Account, user_id: str) -> None:
+    def update_account(
+        self,
+        account_id: str,
+        user_id: str,
+        account_name: Optional[str] = None,
+        balance: Optional[float] = None,
+    ) -> dict:
         """
         Update an existing account.
 
         Args:
             account_id: ID of the account to update.
-            account: Updated Account model.
             user_id: ID of the user.
+            account_name: Optional new name for the account.
+            balance: Optional new balance for the account.
 
         Raises:
-            ValueError if account not found.
-            RuntimeError if update fails.
+            ValueError: If the account does not exist.
+            RuntimeError: If the update fails.
         """
         try:
             orm = (
                 self.session.query(AccountORM)
-                .filter(AccountORM.id == account_id, AccountORM.user_id == user_id)
+                .filter(
+                    AccountORM.id == account_id,
+                    AccountORM.user_id == user_id
+                )
                 .first()
             )
+
             if not orm:
                 raise ValueError(f"Account {account_id} not found for user {user_id}")
 
-            orm.name = account.name
-            orm.type = account.type
-            orm.balance = account.balance
+            if account_name is not None:
+                orm.name = account_name
+            if balance is not None:
+                orm.balance = balance
+
             self.session.commit()
-        except (SQLAlchemyError, ValueError) as exc:
+            self.session.refresh(orm)
+
+        except ValueError:
+            self.session.rollback()
+            raise
+
+        except SQLAlchemyError as exc:
             self.session.rollback()
             raise RuntimeError(
                 f"Failed to update account {account_id} for user {user_id}"

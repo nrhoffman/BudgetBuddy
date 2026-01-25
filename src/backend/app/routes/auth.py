@@ -6,10 +6,10 @@ import uuid
 from fastapi import APIRouter, Depends
 
 from app.auth.password import hash_password
-from app.dependencies import get_budget_service, get_current_user
+from app.dependencies import get_auth_service, get_current_user
 from app.models.user import User, UserCreate
 from app.schemas.auth import LoginRequest
-from app.services.budget_service import BudgetService
+from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 @router.post("/login")
 def login(
     req: LoginRequest,
-    budget_service: BudgetService = Depends(get_budget_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Authenticate a user and return login result.
@@ -29,13 +29,13 @@ def login(
     Returns:
         Result of login operation.
     """
-    return budget_service.login(username=req.username, password=req.password)
+    return auth_service.login(username=req.username, password=req.password)
 
 
 @router.post("/sign-up")
 def create_user(
     user_create: UserCreate,
-    budget_service: BudgetService = Depends(get_budget_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Create a new user with hashed password.
@@ -54,7 +54,7 @@ def create_user(
         hashed_password=hash_password(user_create.password),
         role=user_create.role,
     )
-    return budget_service.create_user(user)
+    return auth_service.create_user(user)
 
 
 @router.post("/check-login")

@@ -33,7 +33,7 @@ def fake_user():
 @pytest.fixture(autouse=True)
 def override_dependencies(mock_budget_service, fake_user):
     app.dependency_overrides = {
-        bank.get_budget_service: lambda: mock_budget_service,
+        bank.get_banking_service: lambda: mock_budget_service,
         bank.get_current_user: lambda: fake_user,
     }
     yield

@@ -8,7 +8,9 @@ type Props = {
   selectedAccount: Account | null;
   onSelectAccount: (account: Account) => void;
   onDeleteAccount: (accountId: string) => void;
+  onEditAccount: (accountId: string, newName: string) => Promise<void>;
   deleting: string | null;
+  editing: string | null;
 };
 
 export default function AccountsSidebar({
@@ -16,9 +18,34 @@ export default function AccountsSidebar({
   selectedAccount,
   onSelectAccount,
   onDeleteAccount,
+  onEditAccount,
   deleting,
+  editing,
 }: Props) {
   const [openOptionsId, setOpenOptionsId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const startEdit = (account: Account) => {
+    setEditingId(account.id);
+    setEditValue(account.name);
+    setOpenOptionsId(null);
+  };
+
+  const saveEdit = async (account: Account) => {
+    if (!editValue.trim() || editValue === account.name) {
+      setEditingId(null);
+      return;
+    }
+
+    await onEditAccount(account.id, editValue.trim());
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditValue("");
+  };
 
   return (
     <div className="col-span-4 bg-white rounded shadow p-4 relative">
@@ -45,7 +72,21 @@ export default function AccountsSidebar({
                   onClick={() => onSelectAccount(account)}
                 >
                   <div className="flex flex-col justify-center">
-                    <span className="font-medium">{account.name}</span>
+                    {editingId === account.id ? (
+                      <input
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => saveEdit(account)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit(account);
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="font-medium text-sm px-1 py-0.5 border rounded w-full"
+                      />
+                    ) : (
+                      <span className="font-medium">{account.name}</span>
+                    )}
                     <span className="text-xs text-gray-500">{account.type}</span>
                   </div>
                   <span className="text-sm text-gray-600">{account.balance.toLocaleString()}</span>
@@ -76,6 +117,12 @@ export default function AccountsSidebar({
                       className="absolute right-0 mt-1 w-36 bg-white border rounded shadow z-10"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <button
+                        onClick={() => startEdit(account)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                      >
+                        {editing === account.id ? "Editing..." : "Edit Account"}
+                      </button>
                       <button
                         onClick={() => onDeleteAccount(account.id)}
                         className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"

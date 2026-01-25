@@ -2,15 +2,18 @@
 
 ## To Do
 - [ ] Make transactions detailed category editable
+- [ ] Replace the shit popup windows
 - [ ] Flag categories with low confidence so user can either approve or change
 - [ ] Confidence level changes to "Manual" if the user changes a category
 - [ ] Make income green and other's red
-- [ ] Calculate initial balance before the initial batch of transactions to begin history
 
 ## In Progress
-- [ ] Making accounts names editable
+- [ ] Add a balance variable to transactions to mean the balance after the transaction takes place
 
 ## Done
+- [x] Split service up and fix pytests
+- [x] Fix pytests for the account update
+- [x] Making accounts names editable
 - [x] Changed Plaid category from legacy to modern
 
 ## Ideas
