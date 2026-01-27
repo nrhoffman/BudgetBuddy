@@ -64,6 +64,7 @@ def orm_to_domain_transaction(orm: TransactionORM) -> Transaction:
             account_id=orm.account_id,
             amount=Decimal(orm.amount),
             date=orm.date,
+            balance_after=orm.balance_after,
             name=orm.name,
             merchant_name=orm.merchant_name,
             category_primary=orm.category_primary,

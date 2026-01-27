@@ -1,8 +1,7 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-from decimal import Decimal
+from datetime import datetime, timezone
 
 from app.db.base import Base
 from app.db.account_orm import AccountORM
@@ -41,7 +40,7 @@ def test_account_orm_creation(db_session, account_id, name, type_, subtype, bala
         type=type_,
         subtype=subtype,
         balance=balance,
-        user_id=user_id
+        user_id=user_id,
     )
     db_session.add(account)
     db_session.commit()
@@ -67,7 +66,7 @@ def test_account_transactions_relationship(db_session):
         type=AccountType.INVESTMENT,
         subtype=None,
         balance=5000.0,
-        user_id="user_010"
+        user_id="user_010",
     )
     db_session.add(account)
     db_session.commit()
@@ -76,15 +75,26 @@ def test_account_transactions_relationship(db_session):
         id="txn_001",
         account_id=account.id,
         amount=100.0,
-        date=datetime(2026, 1, 23, 12, 0, 0)
+        balance_after=5100.0,
+        date=datetime(2026, 1, 23, 12, 0, 0, tzinfo=timezone.utc),
+        name="Deposit",
+        pending=False,
+        iso_currency_code="USD",
     )
+
     account.transactions.append(txn)
     db_session.commit()
 
     saved = db_session.query(AccountORM).filter_by(id="acc_010").first()
     assert len(saved.transactions) == 1
-    assert saved.transactions[0].id == "txn_001"
-    assert float(saved.transactions[0].amount) == 100.0
+
+    saved_txn = saved.transactions[0]
+    assert saved_txn.id == "txn_001"
+    assert float(saved_txn.amount) == 100.0
+    assert float(saved_txn.balance_after) == 5100.0
+    assert saved_txn.name == "Deposit"
+    assert saved_txn.pending is False
+    assert saved_txn.iso_currency_code == "USD"
 
 
 # -----------------------
@@ -97,7 +107,7 @@ def test_account_nullable_subtype(db_session):
         type=AccountType.OTHER,
         subtype=None,
         balance=0.0,
-        user_id="user_020"
+        user_id="user_020",
     )
     db_session.add(account)
     db_session.commit()

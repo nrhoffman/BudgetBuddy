@@ -8,6 +8,7 @@ service.
 """
 
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 
@@ -92,16 +93,35 @@ class BankingService:
             end_date = datetime.today().date()
             start_date = end_date - timedelta(days=90)
 
+            all_transactions = self.banking_provider.get_transactions(
+                access_token,
+                start_date,
+                end_date,
+            )
+
             for account in accounts:
                 self.account_service.create_account(account, user_id)
 
-                transactions = self.banking_provider.get_transactions(
-                    access_token,
-                    start_date,
-                    end_date,
-                )
+                account_transactions = [
+                    tx for tx in all_transactions
+                    if tx.account_id == account.id]
 
-                for txn in transactions:
+                account_transactions.sort(key=lambda tx: (
+                    tx.date,
+                    tx.transaction_id), reverse=True)
+
+                running_balance = Decimal(account.balance)
+
+                for txn in account_transactions:
+                    txn.amount = abs(txn.amount)
+                    is_income = txn.category_primary in ("INCOME", "TRANSFER_IN")
+                    is_credit_like = account.type in ("credit", "loan")
+                    txn.balance_after = running_balance
+                    if is_credit_like:
+                        running_balance += txn.amount if is_income else -txn.amount
+                    else:
+                        running_balance += -txn.amount if is_income else txn.amount
+
                     self.account_service.add_transaction(
                         user_id,
                         account.id,

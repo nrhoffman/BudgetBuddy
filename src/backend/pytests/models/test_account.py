@@ -1,5 +1,6 @@
 import pytest
 from decimal import Decimal
+
 from app.models.account import (
     Account,
     AccountType,
@@ -21,7 +22,8 @@ from app.models.account import (
         ("loan", AccountType.LOAN),
         ("random_invalid", AccountType.OTHER),
         ("", AccountType.OTHER),
-    ]
+        (None, AccountType.OTHER),
+    ],
 )
 def test_parse_account_type(input_value, expected):
     assert parse_account_type(input_value) == expected
@@ -35,15 +37,22 @@ def test_parse_account_type(input_value, expected):
     [
         ("checking", AccountSubType.CHECKING),
         ("SAVINGS", AccountSubType.SAVINGS),
-        ("home equity", AccountSubType.HOMEEQUITY),
-        ("line of credit", AccountSubType.LINEOFCREDIT),
-        ("student", AccountSubType.STUDENT),
-        ("auto", AccountSubType.AUTO),
+        ("money market", AccountSubType.MONEY_MARKET),
+        ("cash management", AccountSubType.CASH_MANAGEMENT),
+        ("cd", AccountSubType.CD),
+        ("hsa", AccountSubType.HEALTH_SAVINGS),
+        ("credit card", AccountSubType.CREDIT_CARD),
+        ("auto", AccountSubType.AUTO_LOAN),
+        ("student", AccountSubType.STUDENT_LOAN),
         ("mortgage", AccountSubType.MORTGAGE),
-        ("hsa", AccountSubType.HSA),
+        ("line of credit", AccountSubType.LINE_OF_CREDIT),
+        ("home equity", AccountSubType.HOME_EQUITY),
+        ("ira", AccountSubType.IRA),
+        ("401k", AccountSubType._401K),
         ("invalid_subtype", AccountSubType.OTHER),
         ("", AccountSubType.OTHER),
-    ]
+        (None, AccountSubType.OTHER),
+    ],
 )
 def test_parse_account_subtype(input_value, expected):
     assert parse_account_subtype(input_value) == expected
@@ -59,8 +68,9 @@ def test_account_model_creation():
         type=AccountType.DEPOSITORY,
         subtype=AccountSubType.CHECKING,
         balance=Decimal("100.50"),
-        transactions=[]
+        transactions=[],
     )
+
     assert account.id == "123"
     assert account.name == "My Checking"
     assert account.type == AccountType.DEPOSITORY
@@ -77,6 +87,20 @@ def test_account_model_default_transactions():
         name="Savings Account",
         type=AccountType.DEPOSITORY,
         subtype=AccountSubType.SAVINGS,
-        balance=Decimal("500.00")
+        balance=Decimal("500.00"),
     )
+
     assert account.transactions == []
+
+
+def test_account_model_allows_null_subtype():
+    """Subtype is optional and may be None."""
+    account = Account(
+        id="789",
+        name="Unknown Account",
+        type=AccountType.OTHER,
+        subtype=None,
+        balance=Decimal("0.00"),
+    )
+
+    assert account.subtype is None

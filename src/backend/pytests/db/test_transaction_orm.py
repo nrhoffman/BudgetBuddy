@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
+from app.models.account import AccountType
 
 
 # -----------------------
@@ -35,12 +36,13 @@ def normalize_datetime(dt):
 # Parametrized transaction creation test
 # -----------------------
 @pytest.mark.parametrize(
-    "txn_id, account_id, amount, date, name, merchant_name, category_primary, category_detailed, category_confidence_level, pending, iso_code, unofficial_code",
+    "txn_id, account_id, amount, balance_after, date, name, merchant_name, category_primary, category_detailed, category_confidence_level, pending, iso_code, unofficial_code",
     [
         (
             "txn_001",
             "acc_001",
             100.0,
+            1100.0,
             datetime(2026, 1, 23, 12, 0, tzinfo=timezone.utc),
             "Groceries",
             "Whole Foods",
@@ -55,6 +57,7 @@ def normalize_datetime(dt):
             "txn_002",
             "acc_001",
             -50.25,
+            1049.75,
             datetime(2026, 1, 24, 15, 30, tzinfo=timezone.utc),
             "Refund",
             "Amazon",
@@ -69,6 +72,7 @@ def normalize_datetime(dt):
             "txn_003",
             "acc_002",
             200.0,
+            1200.0,
             datetime(2026, 1, 25, 9, 45, tzinfo=timezone.utc),
             None,
             None,
@@ -86,6 +90,7 @@ def test_transaction_orm_creation(
     txn_id,
     account_id,
     amount,
+    balance_after,
     date,
     name,
     merchant_name,
@@ -99,7 +104,7 @@ def test_transaction_orm_creation(
     account = AccountORM(
         id=account_id,
         name="Test Account",
-        type="depository",
+        type=AccountType.DEPOSITORY,
         balance=1000.0,
         user_id="user_001",
     )
@@ -110,6 +115,7 @@ def test_transaction_orm_creation(
         id=txn_id,
         account_id=account_id,
         amount=amount,
+        balance_after=balance_after,
         date=date,
         name=name,
         merchant_name=merchant_name,
@@ -129,6 +135,7 @@ def test_transaction_orm_creation(
     assert saved_txn.id == txn_id
     assert saved_txn.account_id == account_id
     assert float(saved_txn.amount) == float(amount)
+    assert float(saved_txn.balance_after) == float(balance_after)
 
     assert normalize_datetime(saved_txn.date) == normalize_datetime(date)
 
@@ -149,7 +156,7 @@ def test_transaction_orm_default_date(db_session):
     account = AccountORM(
         id="acc_010",
         name="Auto Date Account",
-        type="credit",
+        type=AccountType.CREDIT,
         balance=500.0,
         user_id="user_010",
     )
@@ -160,11 +167,14 @@ def test_transaction_orm_default_date(db_session):
         id="txn_010",
         account_id="acc_010",
         amount=75.0,
+        balance_after=575.0,
     )
+
     account.transactions.append(txn)
     db_session.commit()
 
     saved_txn = db_session.query(TransactionORM).filter_by(id="txn_010").first()
     assert saved_txn.date is not None
+
     saved_date = normalize_datetime(saved_txn.date)
     assert (datetime.now(timezone.utc) - saved_date).total_seconds() < 5

@@ -30,6 +30,7 @@ class Transaction(BaseModel):
     account_id: str
     amount: Decimal
     date: datetime
+    balance_after: Optional[Decimal] = None
     name: Optional[str] = None
     merchant_name: Optional[str] = None
     category_primary: Optional[str] = None

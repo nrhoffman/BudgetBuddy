@@ -158,6 +158,7 @@ class AccountRepository:
             account_id=account_id,
             amount=tx.amount,
             date=tx.date,
+            balance_after=tx.balance_after,
             name=tx.name,
             merchant_name=tx.merchant_name,
             category_primary=tx.category_primary,
@@ -173,6 +174,7 @@ class AccountRepository:
             set_={
                 "amount": stmt.excluded.amount,
                 "date": stmt.excluded.date,
+                "balance_after": stmt.excluded.balance_after,
                 "name": stmt.excluded.name,
                 "merchant_name": stmt.excluded.merchant_name,
                 "category_primary": stmt.excluded.category_primary,

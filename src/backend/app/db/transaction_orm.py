@@ -24,6 +24,7 @@ class TransactionORM(Base):
 
     amount: Mapped[float] = mapped_column(Numeric(12, 2))
     date: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc))
+    balance_after: Mapped[float] = mapped_column(Numeric(12, 2))
 
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     merchant_name: Mapped[str | None] = mapped_column(String, nullable=True)

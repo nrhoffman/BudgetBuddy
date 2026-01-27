@@ -10,6 +10,8 @@ export type Transaction = {
   amount: number;
   /** Transaction date in ISO format */
   date: string;
+  /** Balance after transaction */
+  balance_after: number;
   /** Name of the transaction */
   name: string;
   /** Merchant name, if available */

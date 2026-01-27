@@ -24,6 +24,7 @@ export default function TransactionCard({ transaction }: { transaction: Transact
       {expanded && (
         <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
           <div>Merchant Name: {transaction.merchant_name || "-"}</div>
+          <div>Balance After: {transaction.balance_after || "-"}</div>
           <div>Detailed Category: {transaction.category_detailed || "-"}</div>
           <div>Category Confidence: {transaction.category_confidence_level || "-"}</div>
           <div>Transaction ID: {transaction.transaction_id}</div>
