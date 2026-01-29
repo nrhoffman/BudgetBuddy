@@ -26,7 +26,7 @@ export default function DashboardPage() {
     deleteAccount,
     editAccount,
     deleting,
-    editing,
+    editingAccount,
   } = useAccounts();
 
   const [selectedAccount, setSelectedAccount] = useState<typeof accounts[number] | null>(null);
@@ -54,10 +54,9 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Banner spans full width */}
+      {/* Banner */}
       <Banner />
 
-      {/* Sidebar + Main content side by side */}
       <div className="flex">
         {/* Sidebar */}
         <DashboardSidebar activeMenu={activeMenu} onSelectMenu={setActiveMenu} />
@@ -101,7 +100,7 @@ export default function DashboardPage() {
                   onDeleteAccount={deleteAccount}
                   onEditAccount={editAccount}
                   deleting={deleting}
-                  editing={editing}
+                  editing={editingAccount}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -128,7 +127,7 @@ export default function DashboardPage() {
                   onDeleteAccount={deleteAccount}
                   onEditAccount={editAccount}
                   deleting={deleting}
-                  editing={editing}
+                  editing={editingAccount}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -155,7 +154,7 @@ export default function DashboardPage() {
                   onDeleteAccount={deleteAccount}
                   onEditAccount={editAccount}
                   deleting={deleting}
-                  editing={editing}
+                  editing={editingAccount}
                 />
                 <TransactionsPanel account={selectedAccount} />
               </div>
@@ -182,7 +181,7 @@ export default function DashboardPage() {
                     onDeleteAccount={deleteAccount}
                     onEditAccount={editAccount}
                     deleting={deleting}
-                    editing={editing}
+                    editing={editingAccount}
                   />
                 <TransactionsPanel account={selectedAccount} />
               </div>

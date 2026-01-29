@@ -3,7 +3,7 @@
  */
 export type Transaction = {
   /** Unique identifier for the transaction */
-  transaction_id: string;
+  id: string;
   /** ID of the account this transaction belongs to */
   account_id: string;
   /** Transaction amount */

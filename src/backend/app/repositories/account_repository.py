@@ -2,12 +2,15 @@
 Repository layer for accounts and transactions.
 """
 
+from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy.orm import joinedload, Session
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects.postgresql import insert
 
+from app.logger import logger
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.mappers.account_mapper import orm_to_domain_account
@@ -186,6 +189,105 @@ class AccountRepository:
             },
         )
         session.execute(stmt)
+
+    def update_transaction(
+        self,
+        account_id: str,
+        transaction_id: str,
+        user_id: str,
+        updates: dict,
+    ) -> None:
+        """
+        Update user-editable fields on an existing transaction.
+
+        Args:
+            account_id: ID of the account.
+            transaction_id: ID of the transaction.
+            user_id: ID of the user.
+            updates: Dict of fields to update.
+        """
+        try:
+            transaction = (
+                self.session.query(TransactionORM)
+                .join(AccountORM)
+                .filter(
+                    TransactionORM.id == transaction_id,
+                    TransactionORM.account_id == account_id,
+                    AccountORM.user_id == user_id
+                )
+                .one_or_none()
+            )
+
+            if not transaction:
+                raise RuntimeError(f"Transaction {transaction_id} not found for user {user_id}")
+
+            # Apply updates
+            transaction.category_primary = str(updates["category_primary"])
+            transaction.category_detailed = str(updates["category_detailed"])
+            transaction.category_confidence_level = str(updates["category_confidence_level"])
+            if "balance_after" in updates:
+                transaction.balance_after = float(updates["balance_after"])
+
+            self.session.commit()
+
+        except ValueError:
+            self.session.rollback()
+            raise
+
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise RuntimeError(
+                f"Failed to update transaction {transaction_id}"
+            ) from exc
+
+    def rebalance_transactions_after(
+        self,
+        *,
+        account_id: str,
+        after_date: datetime,
+        delta: Decimal,
+        include_original: TransactionORM | None = None,
+    ):
+        """
+        Adjust balance_after for all transactions after `after_date`.
+        Optionally include the original transaction.
+        """
+        if include_original:
+            include_original.balance_after += delta
+
+        subsequent_txs = (
+            self.session.query(TransactionORM)
+            .filter(
+                TransactionORM.account_id == account_id,
+                TransactionORM.date > after_date,
+            )
+            .order_by(TransactionORM.date)
+            .all()
+        )
+
+        for tx in subsequent_txs:
+            tx.balance_after += delta
+
+        self.session.commit()
+
+        self.update_account_balance(account_id=account_id)
+
+    def update_account_balance(self, account_id: str):
+        """
+        Updates the account.balance field to match the balance_after
+        of the latest transaction for that account.
+        """
+        latest_tx = (
+            self.session.query(TransactionORM)
+            .filter(TransactionORM.account_id == account_id)
+            .order_by(TransactionORM.date.desc())
+            .first()
+        )
+
+        if latest_tx:
+            account = self.session.query(AccountORM).filter(AccountORM.id == account_id).one()
+            account.balance = latest_tx.balance_after
+            self.session.commit()
 
     def update_account(
         self,

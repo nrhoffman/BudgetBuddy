@@ -5,6 +5,7 @@ Account API endpoints for managing user financial accounts.
 from fastapi import APIRouter, Depends
 
 from app.dependencies import get_account_service, get_current_user
+from app.models.transaction import UpdateTransaction
 from app.services.account_service import AccountService
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
@@ -19,7 +20,7 @@ def get_accounts(
     Retrieve all financial accounts for the current user.
 
     Args:
-        budget_service: Injected BudgetService instance.
+        account_service: Injected BudgetService instance.
         current_user: The authenticated user.
 
     Returns:
@@ -33,7 +34,7 @@ def get_accounts(
 def update_account(
     account_id: str,
     account_name: str,
-    budget_service: AccountService = Depends(get_account_service),
+    account_service: AccountService = Depends(get_account_service),
     current_user=Depends(get_current_user),
 ):
     """
@@ -42,13 +43,13 @@ def update_account(
     Args:
         account_id: The ID of the account to update.
         account_name: The new name for the account.
-        budget_service: Injected BudgetService instance.
+        account_service: Injected BudgetService instance.
         current_user: The currently authenticated user.
 
     Returns:
         Result of the account update operation.
     """
-    return budget_service.update_account(
+    return account_service.update_account(
         account_id=account_id,
         user_id=current_user.id,
         account_name=account_name)
@@ -57,7 +58,7 @@ def update_account(
 @router.delete("/remove-account/{account_id}")
 def remove_account(
     account_id: str,
-    budget_service: AccountService = Depends(get_account_service),
+    account_service: AccountService = Depends(get_account_service),
     current_user=Depends(get_current_user),
 ):
     """
@@ -65,10 +66,39 @@ def remove_account(
 
     Args:
         account_id: The ID of the account to remove.
-        budget_service: Injected BudgetService instance.
+        account_service: Injected BudgetService instance.
         current_user: The authenticated user.
 
     Returns:
         Result of the account removal operation.
     """
-    return budget_service.remove_account(account_id, current_user.id)
+    return account_service.remove_account(account_id, current_user.id)
+
+
+@router.post("/{account_id}/transactions/{transaction_id}")
+def update_transaction(
+    account_id: str,
+    transaction_id: str,
+    payload: UpdateTransaction,
+    account_service: AccountService = Depends(get_account_service),
+    current_user=Depends(get_current_user),
+):
+    """
+    Update user-editable fields of a transaction.
+
+    Args:
+        account_id: ID of the account containing the transaction.
+        transaction_id: ID of the transaction to update.
+        payload: UpdateTransaction payload with editable fields.
+        account_service: Injected AccountService instance.
+        current_user: The currently authenticated user.
+
+    Returns:
+        Result of the transaction update operation.
+    """
+    return account_service.update_transaction(
+        user_id=current_user.id,
+        account_id=account_id,
+        transaction_id=transaction_id,
+        transaction=payload,
+    )

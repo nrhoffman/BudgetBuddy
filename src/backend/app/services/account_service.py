@@ -7,6 +7,7 @@ the account repository and enforces application-level validation and
 error
 """
 
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -14,7 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.logger import logger
 from app.models.account import Account
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, UpdateTransaction
 from app.repositories.account_repository import AccountRepository
 
 
@@ -292,6 +293,135 @@ class AccountService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to add transaction",
             ) from exc
+        
+    def update_transaction(
+        self,
+        user_id: str,
+        account_id: str,
+        transaction_id: str,
+        transaction: UpdateTransaction,
+    ) -> dict:
+        """
+        Update editable fields on an existing transaction.
+
+        Args:
+            user_id: Identifier of the owning user.
+            account_id: Identifier of the account.
+            transaction_id: Identifier of the transaction to update.
+            transaction: UpdateTransaction payload containing fields to update.
+
+        Returns:
+            dict: Confirmation message and transaction identifier.
+
+        Raises:
+            HTTPException: If account or transaction is not found,
+                           or if a DB error occurs.
+        """
+        try:
+            account = self.account_repo.get(account_id, user_id)
+            if not account:
+                logger.warning(
+                    "Transaction update failed: account not found "
+                    "(account_id=%s, user_id=%s)",
+                    account_id,
+                    user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Account not found",
+                )
+
+            existing_tx = next(
+                (tx for tx in account.transactions
+                 if tx.transaction_id == transaction_id),
+                None,
+            )
+
+            if not existing_tx:
+                logger.warning(
+                    "Transaction update failed: transaction not found "
+                    "(transaction_id=%s, account_id=%s)",
+                    transaction_id,
+                    account_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Transaction not found",
+                )
+
+            update_data = transaction.model_dump(exclude_unset=True)
+            if not update_data:
+                return {
+                    "message": "No updates applied",
+                    "transaction_id": transaction_id,
+                }
+
+            if any(field in update_data for field in ("category_primary",
+                                                      "category_detailed")
+            ):
+                update_data["category_confidence_level"] = "MANUAL"
+
+            old_primary = existing_tx.category_primary
+            new_primary = update_data.get("category_primary", old_primary)
+            old_is_income = self.is_income(old_primary)
+            new_is_income = self.is_income(new_primary)
+            is_credit_loan = self.is_credit_loan(account.type)
+
+            if is_credit_loan:
+                old_is_income, new_is_income = not old_is_income, not new_is_income
+
+            if old_is_income == new_is_income:
+                balance_delta = Decimal("0")
+            else:
+                amount = existing_tx.amount
+                if old_is_income and not new_is_income:
+                    balance_delta = -Decimal("2") * amount
+                else:
+                    balance_delta = Decimal("2") * amount
+
+            self.account_repo.update_transaction(
+                account_id=account_id,
+                transaction_id=transaction_id,
+                user_id=user_id,
+                updates={
+                    **update_data,
+                    "balance_after": existing_tx.balance_after + balance_delta,
+                },
+            )
+
+            if balance_delta != 0:
+                self.account_repo.rebalance_transactions_after(
+                    account_id=account_id,
+                    after_date=existing_tx.date,
+                    delta=balance_delta,
+                    include_original=existing_tx
+                )
+
+            for field, value in update_data.items():
+                setattr(existing_tx, field, value)
+
+            logger.info(
+                "Transaction updated successfully: transaction_id=%s, account_id=%s",
+                transaction_id,
+                account_id,
+            )
+
+            return {
+                "message": "Transaction updated",
+                "transaction_id": transaction_id,
+            }
+
+        except SQLAlchemyError as exc:
+            logger.error(
+                "Database error updating transaction %s: %s",
+                transaction_id,
+                exc,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update transaction",
+            ) from exc
 
     def get_user_financial_snapshot(self, user_id: str) -> list[Account]:
         """
@@ -327,3 +457,9 @@ class AccountService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch financial snapshot",
             ) from exc
+
+    def is_income(self, category_primary: str | None) -> bool:
+        return category_primary in ["INCOME", "TRANSFER_IN"]
+    
+    def is_credit_loan(self, account_type: str | None) -> bool:
+        return account_type in ["credit", "loan"]

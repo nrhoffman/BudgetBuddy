@@ -5,7 +5,8 @@ export function useAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<string | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
 
   const fetchAccounts = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -29,7 +30,6 @@ export function useAccounts() {
   const deleteAccount = async (accountId: string) => {
     const token = localStorage.getItem("token");
     if (!token) return;
-
     if (!confirm("Are you sure you want to delete this account?")) return;
 
     try {
@@ -40,9 +40,7 @@ export function useAccounts() {
       });
 
       if (res.ok) {
-        setAccounts(prev =>
-          prev.filter(acc => acc.id !== accountId)
-        );
+        setAccounts(prev => prev.filter(acc => acc.id !== accountId));
       } else {
         const data = await res.json();
         alert(`Failed to delete account: ${data.detail || "Unknown error"}`);
@@ -55,18 +53,12 @@ export function useAccounts() {
     }
   };
 
-  /**
-   * Updates an account's name.
-   *
-   * @param accountId - ID of the account to update
-   * @param newName - New name for the account
-   */
   const editAccount = async (accountId: string, newName: string) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     try {
-      setEditing(accountId);
+      setEditingAccount(accountId);
       const res = await fetch(
         `/api/accounts/update-account/${accountId}/${encodeURIComponent(newName)}`,
         {
@@ -77,11 +69,7 @@ export function useAccounts() {
 
       if (res.ok) {
         setAccounts(prev =>
-          prev.map(acc =>
-            acc.id === accountId
-              ? { ...acc, name: newName }
-              : acc
-          )
+          prev.map(acc => (acc.id === accountId ? { ...acc, name: newName } : acc))
         );
       } else {
         const data = await res.json();
@@ -91,7 +79,68 @@ export function useAccounts() {
       console.error("Error updating account:", err);
       alert("Error updating account");
     } finally {
-      setEditing(null);
+      setEditingAccount(null);
+    }
+  };
+
+  /**
+   * Updates a transaction's categories.
+   *
+   * @param accountId - ID of the account containing the transaction
+   * @param transactionId - ID of the transaction to update
+   * @param categoryPrimary - New primary category (uppercase, e.g., INCOME)
+   * @param categoryDetailed - New detailed category (uppercase, e.g., INCOME_DIVIDENDS)
+   */
+  const editTransaction = async (
+    accountId: string,
+    transactionId: string,
+    categoryPrimary: string,
+    categoryDetailed: string
+  ) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      setEditingTransaction(transactionId);
+      const res = await fetch(
+        `/api/accounts/${accountId}/transactions/${transactionId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category_primary: categoryPrimary,
+            category_detailed: categoryDetailed,
+          }),
+        }
+      );
+
+      if (res.ok) {
+        // Update local state
+        setAccounts(prev =>
+          prev.map(acc => {
+            if (acc.id !== accountId) return acc;
+            return {
+              ...acc,
+              transactions: acc.transactions.map(tx =>
+                tx.id === transactionId
+                  ? { ...tx, category_primary: categoryPrimary, category_detailed: categoryDetailed }
+                  : tx
+              ),
+            };
+          })
+        );
+      } else {
+        const data = await res.json();
+        alert(`Failed to update transaction: ${data.detail || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Error updating transaction:", err);
+      alert("Error updating transaction");
+    } finally {
+      setEditingTransaction(null);
     }
   };
 
@@ -101,7 +150,9 @@ export function useAccounts() {
     fetchAccounts,
     deleteAccount,
     editAccount,
+    editTransaction,
     deleting,
-    editing,
+    editingAccount,
+    editingTransaction,
   };
 }
