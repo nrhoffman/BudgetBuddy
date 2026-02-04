@@ -34,14 +34,18 @@ def get_accounts(
     """
     try:
         accounts = account_service.get_user_financial_snapshot(current_user.id)
-        logger.debug("Retrieved %d accounts for user %s",
-                     len(accounts),
-                     current_user.id
+        logger.debug(
+            "Retrieved %d accounts for user %s",
+            len(accounts),
+            current_user.id
         )
         return {"accounts": accounts}
     except Exception as exc:
         logger.exception("Failed to fetch accounts for user %s", current_user.id)
-        raise HTTPException(status_code=500, detail="Failed to fetch accounts") from exc
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch accounts"
+        ) from exc
 
 
 @router.post("/update-account/{account_id}/{account_name}")
@@ -72,9 +76,10 @@ def update_account(
         logger.debug("Updated account %s for user %s", account_id, current_user.id)
         return result
     except Exception as exc:
-        logger.exception("Failed to update account %s for user %s",
-                         account_id,
-                         current_user.id
+        logger.exception(
+            "Failed to update account %s for user %s",
+            account_id,
+            current_user.id
         )
         raise HTTPException(status_code=500, detail="Failed to update account") from exc
 
@@ -98,15 +103,17 @@ def remove_account(
     """
     try:
         result = account_service.remove_account(account_id, current_user.id)
-        logger.debug("Removed account %s for user %s",
-                     account_id,
-                     current_user.id
+        logger.debug(
+            "Removed account %s for user %s",
+            account_id,
+            current_user.id
         )
         return result
     except Exception as exc:
-        logger.exception("Failed to remove account %s for user %s",
-                         account_id,
-                         current_user.id
+        logger.exception(
+            "Failed to remove account %s for user %s",
+            account_id,
+            current_user.id
         )
         raise HTTPException(status_code=500, detail="Failed to remove account") from exc
 
@@ -139,9 +146,10 @@ def update_transaction(
     try:
         existing_tx_list = account_service.txn_repo.get_by_ids([transaction_id])
         if not existing_tx_list:
-            logger.warning("Transaction %s not found for user %s",
-                           transaction_id,
-                           current_user.id
+            logger.warning(
+                "Transaction %s not found for user %s",
+                transaction_id,
+                current_user.id
             )
             raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -164,21 +172,25 @@ def update_transaction(
             modified=[updated_tx],
             removed=[],
         )
-        logger.debug("Updated transaction %s for account %s, user %s",
-                     transaction_id,
-                     account_id,
-                     current_user.id
+        logger.debug(
+            "Updated transaction %s for account %s, user %s",
+            transaction_id,
+            account_id,
+            current_user.id
         )
         return {"status": "ok"}
 
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("Failed to update transaction %s for account %s, user %s",
-                         transaction_id,
-                         account_id,
-                         current_user.id
+        logger.exception(
+            "Failed to update transaction %s for account %s, user %s: %s",
+            transaction_id,
+            account_id,
+            current_user.id,
+            exc
         )
-        raise HTTPException(status_code=500, detail=f"Failed to "
-                            f"update transaction: {exc}"
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update transaction"
         ) from exc

@@ -136,4 +136,4 @@ def test_update_transaction_exception(mock_account_service):
     payload = UpdateTransaction(name="test")
     response = client.post("/api/accounts/acc1/transactions/tx1", json=payload.dict())
     assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to update transaction: fail"
+    assert response.json()["detail"] == "Failed to update transaction"

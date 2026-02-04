@@ -152,7 +152,7 @@ describe("useAccounts", () => {
       fakeAccounts[1],
     ]);
 
-    expect(result.current.editing).toBeNull();
+    expect(result.current.editingAccount).toBeNull();
   });
 
   it("alerts on edit failure", async () => {
@@ -185,7 +185,7 @@ describe("useAccounts", () => {
     );
 
     expect(result.current.accounts).toEqual(fakeAccounts);
-    expect(result.current.editing).toBeNull();
+    expect(result.current.editingAccount).toBeNull();
   });
 
   it("does nothing when editing without token", async () => {
@@ -198,6 +198,6 @@ describe("useAccounts", () => {
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(result.current.editing).toBeNull();
+    expect(result.current.editingAccount).toBeNull();
   });
 });

@@ -80,7 +80,7 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
 
 def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
     """
-    Provide a fully initialized BankingService with AccountService, repositories, 
+    Provide a fully initialized BankingService with AccountService, repositories,
     and PlaidSandbox provider.
 
     Args:
@@ -123,7 +123,7 @@ def get_current_user(
         User: Authenticated user instance.
 
     Raises:
-        HTTPException: 
+        HTTPException:
             - 401 if the token is invalid or missing 'sub' claim.
             - 401 if the user does not exist in the database.
     """

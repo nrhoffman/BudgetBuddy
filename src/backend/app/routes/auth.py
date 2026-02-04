@@ -1,7 +1,7 @@
 """
 Authentication API endpoints: login, sign-up, and check authentication.
 
-Provides structured endpoints for user login, account creation, and 
+Provides structured endpoints for user login, account creation, and
 authentication verification, with type hints, logging, and exception handling.
 """
 

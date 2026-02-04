@@ -41,12 +41,14 @@ def create_link_token(
         logger.debug("Created bank link token for user %s", current_user.id)
         return {"link_token": link_token}
     except Exception as exc:
-        logger.exception("Failed to create link token for user %s: %s",
-                         current_user.id,
-                        exc
+        logger.exception(
+            "Failed to create link token for user %s: %s",
+            current_user.id,
+            exc
         )
-        raise HTTPException(status_code=500,
-                            detail="Failed to create link token"
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create link token"
         ) from exc
 
 
@@ -88,8 +90,9 @@ def exchange_token(
             req.institution_id,
             exc
         )
-        raise HTTPException(status_code=500,
-                            detail="Failed to exchange token"
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to exchange token"
         ) from exc
 
 
@@ -117,6 +120,7 @@ async def plaid_webhook(
         return result
     except Exception as exc:
         logger.exception("Failed to process Plaid webhook: %s", exc)
-        raise HTTPException(status_code=500,
-                            detail="Failed to process webhook"
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process webhook"
         ) from exc

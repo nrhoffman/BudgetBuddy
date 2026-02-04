@@ -61,8 +61,9 @@ def sync_transactions(self, item_id: str) -> None:
 
         # Log first modified transaction for debugging
         if sync_result.get("modified"):
-            logger.debug("First modified transaction: %s",
-                         sync_result["modified"][0]
+            logger.debug(
+                "First modified transaction: %s",
+                sync_result["modified"][0]
             )
 
         account_service.apply_transaction_changes(
@@ -76,9 +77,10 @@ def sync_transactions(self, item_id: str) -> None:
         if sync_result.get("next_cursor"):
             logger.debug("Next cursor: %s", sync_result["next_cursor"])
 
-        bank_repo.save_cursor(user_id=token.user_id,
-                              item_id=item_id,
-                              cursor=sync_result["next_cursor"]
+        bank_repo.save_cursor(
+            user_id=token.user_id,
+            item_id=item_id,
+            cursor=sync_result["next_cursor"]
         )
 
         logger.info("Transaction sync completed for item_id: %s", item_id)

@@ -34,8 +34,8 @@ class PlaidSandbox(BankingProvider):
     """
     Plaid sandbox implementation for testing account and transaction APIs.
 
-    Provides methods to create link tokens, exchange public tokens for access 
-    tokens, fetch accounts and transactions, and perform incremental transaction 
+    Provides methods to create link tokens, exchange public tokens for access
+    tokens, fetch accounts and transactions, and perform incremental transaction
     synchronization using Plaid's sandbox environment.
 
     Attributes:
@@ -93,9 +93,10 @@ class PlaidSandbox(BankingProvider):
             )
             raise
         except Exception as exc:
-            logger.exception("Unexpected error creating link token for user %s: %s",
-                             user_id,
-                             exc
+            logger.exception(
+                "Unexpected error creating link token for user %s: %s",
+                user_id,
+                exc
             )
             raise
 
@@ -166,7 +167,7 @@ class PlaidSandbox(BankingProvider):
             logger.error("Failed to fetch Plaid accounts: %s", exc, exc_info=True)
             raise
         except Exception as exc:
-            logger.exception("Unexpected error fetching Plaid accounts")
+            logger.exception("Unexpected error fetching Plaid accounts: %s", exc)
             raise
 
     def get_transactions(
@@ -249,7 +250,6 @@ class PlaidSandbox(BankingProvider):
                     for txn in res.removed
                 )
 
-
                 cursor = res.next_cursor
                 has_more = res.has_more
 
@@ -309,8 +309,11 @@ class PlaidSandbox(BankingProvider):
                 date=txn.date,
                 category_primary=getattr(pfc, "primary", None) if pfc else None,
                 category_detailed=getattr(pfc, "detailed", None) if pfc else None,
-                category_confidence_level=getattr(pfc, "confidence_level", None)
-                                         if pfc else None,
+                category_confidence_level=getattr(
+                    pfc,
+                    "confidence_level",
+                    None
+                ) if pfc else None,
                 pending=getattr(txn, "pending", None),
                 iso_currency_code=getattr(txn, "iso_currency_code", None),
                 unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
@@ -318,7 +321,7 @@ class PlaidSandbox(BankingProvider):
         except Exception as exc:
             logger.exception(
                 "Failed to map Plaid transaction %s: %s",
-                getattr(txn, "transaction_id", None)
-                , exc
+                getattr(txn, "transaction_id", None),
+                exc
             )
             raise

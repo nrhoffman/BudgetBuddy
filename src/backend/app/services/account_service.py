@@ -58,9 +58,10 @@ class AccountService:
         """
         try:
             self.account_repo.add_account(account, user_id)
-            logger.info("Account created: account_id=%s, user_id=%s",
-                        account.id,
-                        user_id
+            logger.info(
+                "Account created: account_id=%s, user_id=%s",
+                account.id,
+                user_id
             )
             return {"message": "Account created", "account_id": account.id}
 
@@ -93,17 +94,20 @@ class AccountService:
         try:
             account = self.account_repo.get(account_id, user_id)
             if not account:
-                logger.warning("Account not found: account_id=%s, user_id=%s",
-                               account_id,
-                               user_id
+                logger.warning(
+                    "Account not found: account_id=%s, user_id=%s",
+                    account_id,
+                    user_id
                 )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail="Account not found"
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Account not found"
                 )
 
-            logger.info("Fetched account: account_id=%s, user_id=%s",
-                        account_id,
-                        user_id
+            logger.info(
+                "Fetched account: account_id=%s, user_id=%s",
+                account_id,
+                user_id
             )
             return account
 
@@ -194,9 +198,10 @@ class AccountService:
         """
         try:
             self.account_repo.delete_account(account_id, user_id)
-            logger.info("Account deleted: account_id=%s, user_id=%s",
-                        account_id,
-                        user_id
+            logger.info(
+                "Account deleted: account_id=%s, user_id=%s",
+                account_id,
+                user_id
             )
             return {"message": "Account deleted successfully"}
 
@@ -257,9 +262,10 @@ class AccountService:
         if txns:
             self.txn_repo.bulk_upsert(user_id, txns)
 
-    def _rebalance_accounts(self,
-                            user_id: str,
-                            from_dates: Dict[str, Dict[str, datetime]]
+    def _rebalance_accounts(
+            self,
+            user_id: str,
+            from_dates: Dict[str, Dict[str, datetime]]
     ) -> None:
         self.account_repo.recalculate_balances_from(user_id, from_dates)
 
@@ -284,9 +290,10 @@ class AccountService:
             tx.transaction_id: tx for tx in self.txn_repo.get_by_ids(list(txn_ids))
         } if txn_ids else {}
 
-        def update_boundary(account_id: str,
-                            tx_date: datetime,
-                            import_date: Optional[datetime]
+        def update_boundary(
+                account_id: str,
+                tx_date: datetime,
+                import_date: Optional[datetime]
         ):
             if account_id not in boundaries:
                 boundaries[account_id] = {
@@ -307,37 +314,42 @@ class AccountService:
 
         for t in added:
             account = self.account_repo.get(t.account_id, user_id)
-            update_boundary(t.account_id,
-                            t.date,
-                            account.initial_import_completed_at
+            update_boundary(
+                t.account_id,
+                t.date,
+                account.initial_import_completed_at
             )
 
         for t in modified:
             old_tx = old_txns.get(t.transaction_id)
             if old_tx:
                 account = self.account_repo.get(t.account_id, user_id)
-                update_boundary(t.account_id,
-                                old_tx.date,
-                                account.initial_import_completed_at
+                update_boundary(
+                    t.account_id,
+                    old_tx.date,
+                    account.initial_import_completed_at
                 )
-                update_boundary(t.account_id,
-                                t.date,
-                                account.initial_import_completed_at
+                update_boundary(
+                    t.account_id,
+                    t.date,
+                    account.initial_import_completed_at
                 )
             else:
                 account = self.account_repo.get(t.account_id, user_id)
-                update_boundary(t.account_id,
-                                t.date,
-                                account.initial_import_completed_at
+                update_boundary(
+                    t.account_id,
+                    t.date,
+                    account.initial_import_completed_at
                 )
 
         for txn_id in removed:
             old_tx = old_txns.get(txn_id)
             if old_tx:
                 account = self.account_repo.get(old_tx.account_id, user_id)
-                update_boundary(old_tx.account_id,
-                                old_tx.date,
-                                account.initial_import_completed_at
+                update_boundary(
+                    old_tx.account_id,
+                    old_tx.date,
+                    account.initial_import_completed_at
                 )
 
         return boundaries

@@ -65,14 +65,20 @@ class BankRepository:
             token = self.session.scalar(stmt)
 
             if token:
-                logger.debug("Updating existing bank token for user %s, institution %s",
-                             user_id, exchange_token.institution_id)
+                logger.debug(
+                    "Updating existing bank token for user %s, institution %s",
+                    user_id,
+                    exchange_token.institution_id
+                )
                 token.access_token = exchange_token.public_token
                 token.item_id = item_id
                 token.institution_name = exchange_token.institution_name
             else:
-                logger.debug("Creating new bank token for user %s, institution %s",
-                             user_id, exchange_token.institution_id)
+                logger.debug(
+                    "Creating new bank token for user %s, institution %s",
+                    user_id,
+                    exchange_token.institution_id
+                )
                 token = BankItemToken(
                     user_id=user_id,
                     provider=provider,
@@ -92,10 +98,7 @@ class BankRepository:
                 exchange_token.institution_id,
                 exc
             )
-            raise RuntimeError(
-                f"Failed to save bank token for user {user_id}, "
-                f"institution {exchange_token.institution_id}: {exc}"
-            ) from exc
+            raise RuntimeError("Failed to save bank token for user") from exc
 
     def get_by_user(self, user_id: str, institution_id: str) -> Optional[BankItemToken]:
         """
@@ -117,8 +120,12 @@ class BankRepository:
                 .filter_by(user_id=user_id, institution_id=institution_id)
                 .one_or_none()
             )
-            logger.debug("Fetched token for user %s, institution %s: %s",
-                         user_id, institution_id, token)
+            logger.debug(
+                "Fetched token for user %s, institution %s: %s",
+                user_id,
+                institution_id,
+                token
+            )
             return token
         except SQLAlchemyError as exc:
             logger.exception(
@@ -127,10 +134,7 @@ class BankRepository:
                 institution_id,
                 exc
             )
-            raise RuntimeError(
-                f"Failed to fetch bank token for user {user_id}, "
-                f"institution {institution_id}: {exc}"
-            ) from exc
+            raise RuntimeError("Failed to fetch bank token for user") from exc
 
     def get_token_by_item_id(self, item_id: str) -> Optional[BankItemToken]:
         """
@@ -154,10 +158,12 @@ class BankRepository:
             logger.debug("Fetched token for item_id %s: %s", item_id, token)
             return token
         except SQLAlchemyError as exc:
-            logger.exception("Failed to fetch bank token for item_id %s", item_id)
-            raise RuntimeError(
-                f"Failed to fetch bank token for item_id {item_id}: {exc}"
-            ) from exc
+            logger.exception(
+                "Failed to fetch bank token for item_id %s: %s",
+                item_id,
+                exc
+            )
+            raise RuntimeError("Failed to fetch bank token for item_id") from exc
 
     # ---------------------------
     # Cursor methods
@@ -181,16 +187,18 @@ class BankRepository:
                 .one_or_none()
             )
             if existing:
-                logger.debug("Updating existing cursor for user %s, item %s",
-                             user_id,
-                             item_id
+                logger.debug(
+                    "Updating existing cursor for user %s, item %s",
+                    user_id,
+                    item_id
                 )
                 existing.cursor = cursor
                 existing.updated_at = datetime.now(timezone.utc)
             else:
-                logger.debug("Creating new cursor for user %s, item %s",
-                             user_id,
-                             item_id
+                logger.debug(
+                    "Creating new cursor for user %s, item %s",
+                    user_id,
+                    item_id
                 )
                 new_cursor = BankItemCursor(
                     user_id=user_id,
@@ -202,13 +210,13 @@ class BankRepository:
             self.session.commit()
         except SQLAlchemyError as exc:
             self.session.rollback()
-            logger.exception("Failed to save cursor for user %s, item %s",
-                             user_id, item_id
+            logger.exception(
+                "Failed to save cursor for user %s, item %s: %s",
+                user_id,
+                item_id,
+                exc
             )
-            raise RuntimeError(
-                f"Failed to save cursor for user "
-                f"{user_id}, item {item_id}: {exc}"
-            ) from exc
+            raise RuntimeError("Failed to save cursor for user") from exc
 
     def get_cursor_by_item_id(self, item_id: str) -> Optional[BankItemCursor]:
         """

@@ -77,10 +77,11 @@ class AuthService:
             ) from exc
 
         except SQLAlchemyError as exc:
-            logger.error("Database error creating user %s: %s",
-                         user.username,
-                         exc,
-                         exc_info=True
+            logger.error(
+                "Database error creating user %s: %s",
+                user.username,
+                exc,
+                exc_info=True
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -129,7 +130,8 @@ class AuthService:
         token = create_access_token(subject=user.id)
         logger.info("User %s logged in successfully", user.id)
 
-        return {"message": "Login successful",
-                "access_token": token,
-                "token_type": "bearer"
+        return {
+            "message": "Login successful",
+            "access_token": token,
+            "token_type": "bearer"
         }

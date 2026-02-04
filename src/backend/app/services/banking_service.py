@@ -163,9 +163,10 @@ class BankingService:
             sync_result = self.banking_provider.get_transactions_sync(
                 exchange_result.access_token
             )
-            self.bank_repo.save_cursor(user_id=user_id,
-                                       item_id=exchange_result.item_id,
-                                       cursor=sync_result["next_cursor"]
+            self.bank_repo.save_cursor(
+                user_id=user_id,
+                item_id=exchange_result.item_id,
+                cursor=sync_result["next_cursor"]
             )
 
             return {"status": "linked", "accounts_added": len(accounts)}

@@ -60,10 +60,12 @@ class TransactionRepository:
             return [orm_to_domain_transaction(orm) for orm in orms]
 
         except SQLAlchemyError as exc:
-            logger.exception("Failed to fetch transactions: %s", transaction_ids)
-            raise RuntimeError(f"Failed to fetch transactions "
-                               f"{transaction_ids}: {exc}"
-            ) from exc
+            logger.exception(
+                "Failed to fetch transactions %s: %s",
+                transaction_ids,
+                exc
+            )
+            raise RuntimeError("Failed to fetch transactions") from exc
 
     # ---------------------------
     # Upsert methods
@@ -83,8 +85,9 @@ class TransactionRepository:
             RuntimeError: If the bulk operation fails.
         """
         if not transactions:
-            logger.debug("No transactions provided for bulk upsert for user %s",
-                         user_id
+            logger.debug(
+                "No transactions provided for bulk upsert for user %s",
+                user_id
             )
             return 0
 
@@ -156,8 +159,9 @@ class TransactionRepository:
             RuntimeError: If deletion fails.
         """
         if not transaction_ids:
-            logger.debug("No transaction IDs provided for deletion for user %s",
-                         user_id
+            logger.debug(
+                "No transaction IDs provided for deletion for user %s",
+                user_id
             )
             return 0
 
@@ -177,9 +181,10 @@ class TransactionRepository:
 
         except SQLAlchemyError as exc:
             self.session.rollback()
-            logger.exception("Failed to delete transactions for user %s: %s",
-                             user_id,
-                             transaction_ids
+            logger.exception(
+                "Failed to delete transactions for user %s: %s",
+                user_id,
+                transaction_ids
             )
             raise RuntimeError(
                 f"Failed to delete transactions for user {user_id}: {transaction_ids}"

@@ -285,16 +285,18 @@ class AccountRepository:
             logger.exception("Failed to recalculate balances for user %s", user_id)
             raise RuntimeError("Balance recalculation failed") from exc
 
-    def recalculate_balances_backward(self, user_id: str,
-                                      account_id: str,
+    def recalculate_balances_backward(
+            self,
+            user_id: str,
+            account_id: str,
     ) -> None:
         """
-        Recalculate historical balances for an account, walking backward from 
+        Recalculate historical balances for an account, walking backward from
         the initial import date.
 
-        This method updates the `balance_after` field of all transactions 
-        that occurred on or before the account's initial import date. If no 
-        historical transactions exist, it sets the balance on the first 
+        This method updates the `balance_after` field of all transactions
+        that occurred on or before the account's initial import date. If no
+        historical transactions exist, it sets the balance on the first
         transaction to the account's initial balance.
 
         Args:

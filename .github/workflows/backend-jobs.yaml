@@ -24,7 +24,7 @@ jobs:
       - run: | 
           flake8 src/backend \
           --max-line-length 88 \
-          --exclude=alembic,pytests,__init__.py
+          --exclude=alembic,pytests,scripts,__init__.py
       - run: |
           pylint src/backend \
             --ignore=alembic,pytests,scripts \
