@@ -43,7 +43,7 @@ jobs:
           python-version: "3.11"
       - run: |
           python -m pip install --upgrade pip
-          pip install -r src/backend/requirements.txt pytest
+          pip install -r src/backend/requirements.txt pytest  pytest-cov
       - run: echo "PYTHONPATH=src/backend" >> $GITHUB_ENV
       - run: echo "DATABASE_URL=sqlite:///test.db" >> $GITHUB_ENV
       - run: |
