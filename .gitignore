@@ -26,3 +26,6 @@ __pycache__/
 venv/
 .pytest_cache/
 *coverage
+
+# redis
+dump.rdb

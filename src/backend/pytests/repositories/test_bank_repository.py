@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.repositories.bank_repository import BankRepository
 from app.db.bank_item_token_orm import BankItemToken
 from app.db.bank_item_cursor_orm import BankItemCursor
+from app.models.exchange_token import ExchangeToken
 
 
 # ---------------------------
@@ -37,7 +38,13 @@ def test_save_token(mock_session, existing_token):
     access_token = "access123"
     item_id = "item123"
 
-    repo.save_token(user_id, provider, institution_id, institution_name, access_token, item_id)
+    exchange_token =ExchangeToken(
+        public_token=access_token,
+        institution_id=institution_id,
+        institution_name=institution_name,
+    )
+
+    repo.save_token(user_id, provider, item_id, exchange_token)
 
     if existing_token:
         # Should update existing token
@@ -58,8 +65,13 @@ def test_save_token(mock_session, existing_token):
 def test_save_token_exception(mock_session):
     repo = BankRepository(mock_session)
     mock_session.scalar.side_effect = SQLAlchemyError("fail")
+    exchange_token =ExchangeToken(
+        public_token="token",
+        institution_id="inst1",
+        institution_name="Bank A",
+    )
     with pytest.raises(RuntimeError):
-        repo.save_token("user", "prov", "inst", "Bank", "token", "item")
+        repo.save_token("user", "prov", "item", exchange_token)
     mock_session.rollback.assert_called_once()
 
 

@@ -1,24 +1,24 @@
 # Project Backlog
 
 ## To Do
+- [ ] Currently modified syncs rewrites Manually modified categories and confidence
 - [ ] Replace the shit popup windows
 - [ ] Make income green and other's red
-- [ ] Add APR/interest
 - [ ] Verify if link token needs to be created upon each page refresh
 - [ ] Encrypt public tokens
-- [ ] Need to be able to add accounts for institutions already added
 - [ ] getting snapshot occurs too often
 - [ ] Auth currently goes inactive when active (jwt token as well)
 - [ ] Verify backend processes are multi-user
 - [ ] Check if transactions can do time and not just date - make it so time is used
 
 ## In Progress
-- [ ] Add webhook functionality, queuing, and syncing
+- [ ] Need to be able to add accounts for institutions already added
 - [ ] After webhook addition, set category changes
 - [ ] Verify balances work correctly credit/loan vs others
 - [ ] Optionally set the description as a pattern in a transaction_rule table
 
 ## Done
+- [x] Add webhook functionality, queuing, and syncing
 - [x] Confidence level changes to "Manual" if the user changes a category
 - [x] Currently, rebalancing takes 1 date - it needs to take two since there are two types of calculations
 - [x] combined transaction add/update/remove
@@ -36,6 +36,7 @@
 - [x] Changed Plaid category from legacy to modern
 
 ## Ideas
+- Add APR/interest
 - Show income a month and year - break down by sources
 - Show spending trends graph by category
 - Make a budget

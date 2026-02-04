@@ -11,7 +11,9 @@ from typing import Optional
 from app.celery_app import celery_app
 from app.logger import logger
 from app.db.session import SESSIONLOCAL
+from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
+from app.repositories.transaction_repository import TransactionRepository
 from app.services.account_service import AccountService
 from app.providers.plaid_sandbox import PlaidSandbox
 
@@ -31,12 +33,16 @@ def sync_transactions(self, item_id: str) -> None:
         - Logs progress and warnings.
         - Ensures DB session is closed after processing.
     """
+    _ = self
     logger.info("Starting transaction sync for item_id: %s", item_id)
     db = SESSIONLOCAL()
 
     try:
         bank_repo = BankRepository(db)
-        account_service = AccountService(db)
+        account_service = AccountService(
+            AccountRepository(db),
+            TransactionRepository(db)
+        )
         plaid = PlaidSandbox()
 
         token = bank_repo.get_token_by_item_id(item_id)
@@ -48,25 +54,32 @@ def sync_transactions(self, item_id: str) -> None:
         cursor: Optional[str] = cursor_record.cursor if cursor_record else None
 
         sync_result = plaid.get_transactions_sync(token.access_token, cursor)
-        print(sync_result)
 
-        # # Log first added transaction for debugging
-        # if sync_result.get("added"):
-        #     logger.info("First added transaction: %s", sync_result["added"][0])
+        # Log first added transaction for debugging
+        if sync_result.get("added"):
+            logger.debug("First added transaction: %s", sync_result["added"][0])
 
-        # # Apply added transactions
-        # for txn in sync_result.get("added", []):
-        #     account_service.apply_transaction_changes(token.user_id, txn.account_id, txn)
+        # Log first modified transaction for debugging
+        if sync_result.get("modified"):
+            logger.debug("First modified transaction: %s",
+                         sync_result["modified"][0]
+            )
 
-        # Uncomment if supporting modified/removed transactions
-        # for txn in sync_result.get("modified", []):
-        #     account_service.update_transaction(token.user_id, txn.account_id, txn)
+        account_service.apply_transaction_changes(
+            user_id=token.user_id,
+            added=sync_result.get("added", []),
+            modified=sync_result.get("modified", []),
+            removed=sync_result.get("removed", []),
+        )
 
-        # for txn in sync_result.get("removed", []):
-        #     account_service.remove_transaction(token.user_id, txn)
+        # Log next_cursor if present
+        if sync_result.get("next_cursor"):
+            logger.debug("Next cursor: %s", sync_result["next_cursor"])
 
-        # Save next cursor to database
-        # bank_repo.save_cursor(user_id=token.user_id, item_id=item_id, cursor=sync_result["next_cursor"])
+        bank_repo.save_cursor(user_id=token.user_id,
+                              item_id=item_id,
+                              cursor=sync_result["next_cursor"]
+        )
 
         logger.info("Transaction sync completed for item_id: %s", item_id)
 

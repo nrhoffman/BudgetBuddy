@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from app.db.bank_item_token_orm import BankItemToken
 from app.db.bank_item_cursor_orm import BankItemCursor
+from app.models.exchange_token import ExchangeToken
 from app.logger import logger
 
 
@@ -40,10 +41,8 @@ class BankRepository:
         self,
         user_id: str,
         provider: str,
-        institution_id: str,
-        institution_name: Optional[str],
-        access_token: str,
         item_id: str,
+        exchange_token: ExchangeToken,
     ) -> None:
         """
         Save or update a bank item token for a user.
@@ -51,10 +50,8 @@ class BankRepository:
         Args:
             user_id (str): User identifier.
             provider (str): Bank provider name.
-            institution_id (str): Institution identifier.
-            institution_name (Optional[str]): Institution name.
-            access_token (str): Access token.
             item_id (str): Bank item ID.
+            exchange_token (ExchangeToken): Exchange token object.
 
         Raises:
             RuntimeError: If database commit fails.
@@ -63,25 +60,25 @@ class BankRepository:
             stmt = select(BankItemToken).where(
                 BankItemToken.user_id == user_id,
                 BankItemToken.provider == provider,
-                BankItemToken.institution_id == institution_id,
+                BankItemToken.institution_id == exchange_token.institution_id,
             )
             token = self.session.scalar(stmt)
 
             if token:
                 logger.debug("Updating existing bank token for user %s, institution %s",
-                             user_id, institution_id)
-                token.access_token = access_token
+                             user_id, exchange_token.institution_id)
+                token.access_token = exchange_token.public_token
                 token.item_id = item_id
-                token.institution_name = institution_name
+                token.institution_name = exchange_token.institution_name
             else:
                 logger.debug("Creating new bank token for user %s, institution %s",
-                             user_id, institution_id)
+                             user_id, exchange_token.institution_id)
                 token = BankItemToken(
                     user_id=user_id,
                     provider=provider,
-                    institution_id=institution_id,
-                    institution_name=institution_name,
-                    access_token=access_token,
+                    institution_id=exchange_token.institution_id,
+                    institution_name=exchange_token.institution_name,
+                    access_token=exchange_token.public_token,
                     item_id=item_id,
                 )
                 self.session.add(token)
@@ -92,12 +89,12 @@ class BankRepository:
             logger.exception(
                 "Failed to save bank token for user %s, institution %s: %s",
                 user_id,
-                institution_id,
+                exchange_token.institution_id,
                 exc
             )
             raise RuntimeError(
                 f"Failed to save bank token for user {user_id}, "
-                f"institution {institution_id}: {exc}"
+                f"institution {exchange_token.institution_id}: {exc}"
             ) from exc
 
     def get_by_user(self, user_id: str, institution_id: str) -> Optional[BankItemToken]:

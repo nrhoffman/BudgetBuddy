@@ -6,31 +6,43 @@ from app.tasks.plaid import sync_transactions
 
 
 @pytest.mark.parametrize(
-    "token_exists,cursor_exists,added_txns",
+    "token_exists,cursor_exists,added_txns,modified_txns,removed_txns",
     [
-        (False, False, []),  # No token
-        (True, False, []),   # Token exists, no tx
-        (True, True, [SimpleNamespace(account_id="acc1", amount=100)]),  # Token + tx
+        (False, False, [], [], []),  # No token
+        (True, False, [], [], []),   # Token exists, no transactions
+        (
+            True,
+            True,
+            [SimpleNamespace(account_id="acc1", amount=100, transaction_id="txn1")],
+            [SimpleNamespace(account_id="acc1", amount=50, transaction_id="txn2")],
+            ["txn3"]
+        ),  # Token + transactions
     ],
 )
 @patch("app.tasks.plaid.SESSIONLOCAL")
 @patch("app.tasks.plaid.PlaidSandbox")
 @patch("app.tasks.plaid.BankRepository")
 @patch("app.tasks.plaid.AccountService")
+@patch("app.tasks.plaid.AccountRepository")
+@patch("app.tasks.plaid.TransactionRepository")
 def test_sync_transactions(
-    mock_account_service,
+    mock_tx_repo_cls,
+    mock_acc_repo_cls,
+    mock_account_service_cls,
     mock_bank_repo_cls,
     mock_plaid_cls,
     mock_sessionlocal,
     token_exists,
     cursor_exists,
     added_txns,
+    modified_txns,
+    removed_txns,
 ):
     """
-    Test sync_transactions task with different scenarios:
-      - No token
-      - Token exists but no transactions
-      - Token exists with added transactions
+    Test sync_transactions Celery task with different scenarios:
+    - No token
+    - Token exists but no transactions
+    - Token exists with added, modified, and removed transactions
     """
     # Mock DB session
     mock_db = MagicMock()
@@ -52,32 +64,48 @@ def test_sync_transactions(
     # Mock PlaidSandbox
     mock_plaid = MagicMock()
     mock_plaid_cls.return_value = mock_plaid
-    mock_plaid.get_transactions_sync.return_value = {"added": added_txns, "modified": [], "removed": [], "next_cursor": "next_cursor"}
+    mock_plaid.get_transactions_sync.return_value = {
+        "added": added_txns,
+        "modified": modified_txns,
+        "removed": removed_txns,
+        "next_cursor": "next_cursor"
+    }
 
-    # Mock AccountService
+    # Mock AccountService instance
     mock_account_service_instance = MagicMock()
-    mock_account_service.return_value = mock_account_service_instance
+    mock_account_service_cls.return_value = mock_account_service_instance
+
+    # Mock repositories (just needed for instantiation)
+    mock_acc_repo_cls.return_value = MagicMock()
+    mock_tx_repo_cls.return_value = MagicMock()
 
     # Call task
     sync_transactions("item_abc")
 
-    # DB session closed
+    # Ensure DB session closed
     mock_db.close.assert_called_once()
 
     if not token_exists:
         mock_bank_repo.get_cursor_by_item_id.assert_not_called()
         mock_plaid.get_transactions_sync.assert_not_called()
-        mock_account_service_instance.add_transaction.assert_not_called()
+        mock_account_service_instance.apply_transaction_changes.assert_not_called()
         return
 
     # Token exists → check Plaid called
-    mock_plaid.get_transactions_sync.assert_called_once_with(token.access_token, "cursor123" if cursor_exists else None)
+    expected_cursor = "cursor123" if cursor_exists else None
+    mock_plaid.get_transactions_sync.assert_called_once_with(token.access_token, expected_cursor)
 
-    # Added transactions applied
-    if added_txns:
-        for txn in added_txns:
-            mock_account_service_instance.add_transaction.assert_any_call(
-                token.user_id, txn.account_id, txn
-            )
-    else:
-        mock_account_service_instance.add_transaction.assert_not_called()
+    # Added/modified/removed transactions applied
+    mock_account_service_instance.apply_transaction_changes.assert_called_once_with(
+        user_id=token.user_id,
+        added=added_txns,
+        modified=modified_txns,
+        removed=removed_txns,
+    )
+
+    # Cursor saved
+    mock_bank_repo.save_cursor.assert_called_once_with(
+        user_id=token.user_id,
+        item_id="item_abc",
+        cursor="next_cursor"
+    )

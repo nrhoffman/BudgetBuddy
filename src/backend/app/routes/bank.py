@@ -45,7 +45,9 @@ def create_link_token(
                          current_user.id,
                         exc
         )
-        raise HTTPException(status_code=500, detail="Failed to create link token")
+        raise HTTPException(status_code=500,
+                            detail="Failed to create link token"
+        ) from exc
 
 
 @router.post("/exchange-token", response_model=Dict[str, str])
@@ -86,7 +88,9 @@ def exchange_token(
             req.institution_id,
             exc
         )
-        raise HTTPException(status_code=500, detail="Failed to exchange token")
+        raise HTTPException(status_code=500,
+                            detail="Failed to exchange token"
+        ) from exc
 
 
 @router.post("/webhooks/plaid")
@@ -113,4 +117,6 @@ async def plaid_webhook(
         return result
     except Exception as exc:
         logger.exception("Failed to process Plaid webhook: %s", exc)
-        raise HTTPException(status_code=500, detail="Failed to process webhook")
+        raise HTTPException(status_code=500,
+                            detail="Failed to process webhook"
+        ) from exc

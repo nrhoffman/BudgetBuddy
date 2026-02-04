@@ -11,9 +11,28 @@ load_dotenv()
 # ------------------------
 PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
 PLAID_SECRET = os.getenv("PLAID_SECRET")
-ACCESS_TOKEN = ""
 PLAID_ENV = "https://sandbox.plaid.com"
 
+
+url = f"{PLAID_ENV}/sandbox/public_token/create"
+payload = {
+    "client_id": PLAID_CLIENT_ID,
+    "secret": PLAID_SECRET,
+    "institution_id": "ins_109508",
+    "initial_products": ["transactions"],
+}
+
+res = requests.post(url, json=payload).json()
+public_token = res["public_token"]
+
+url_exchange = f"{PLAID_ENV}/item/public_token/exchange"
+res_exchange = requests.post(url_exchange, json={
+    "client_id": PLAID_CLIENT_ID,
+    "secret": PLAID_SECRET,
+    "public_token": public_token
+}).json()
+
+ACCESS_TOKEN = res_exchange["access_token"]
 
 url = f"{PLAID_ENV}/sandbox/transactions/create"
 

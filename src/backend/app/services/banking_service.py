@@ -8,15 +8,17 @@ service. Includes structured logging and HTTPException handling.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
 
 from app.logger import logger
 from app.tasks.plaid import sync_transactions
 from app.interfaces.banking_provider import BankingProvider
+from app.models.exchange_token import ExchangeToken
 from app.repositories.bank_repository import BankRepository
 from app.repositories.account_repository import AccountRepository
 from app.services.account_service import AccountService
+from app.models.transaction import Transaction
 
 
 class BankingService:
@@ -115,8 +117,6 @@ class BankingService:
 
         try:
             exchange_result = self.banking_provider.exchange_public_token(public_token)
-            access_token = exchange_result.access_token
-            item_id = exchange_result.item_id
 
             existing_token = self.bank_repo.get_by_user(user_id, institution_id)
             if existing_token:
@@ -127,24 +127,28 @@ class BankingService:
                     "item_id": existing_token.item_id,
                 }
 
-            self.bank_repo.save_token(
-                user_id=user_id,
-                provider="Plaid",
-                access_token=access_token,
-                item_id=item_id,
+            exchange_token = ExchangeToken(
+                public_token=exchange_result.access_token,
                 institution_id=institution_id,
                 institution_name=institution_name,
             )
 
-            accounts = self.banking_provider.get_accounts(access_token) or []
+            self.bank_repo.save_token(
+                user_id=user_id,
+                provider="Plaid",
+                item_id=exchange_result.item_id,
+                exchange_token=exchange_token,
+            )
+
+            accounts = self.banking_provider.get_accounts(
+                exchange_result.access_token
+            ) or []
             if not accounts:
                 return {"status": "linked", "accounts_added": 0}
 
-            end_date = datetime.today().date()
-            start_date = end_date - timedelta(days=90)
-            all_transactions = self.banking_provider.get_transactions(
-                access_token,
-                start_date, end_date
+            all_transactions = self.get_transactions_within_dates(
+                access_token=exchange_result.access_token,
+
             )
 
             for account in accounts:
@@ -156,9 +160,11 @@ class BankingService:
                     user_id=user_id, added=account_transactions, modified=[], removed=[]
                 )
 
-            sync_result = self.banking_provider.get_transactions_sync(access_token)
+            sync_result = self.banking_provider.get_transactions_sync(
+                exchange_result.access_token
+            )
             self.bank_repo.save_cursor(user_id=user_id,
-                                       item_id=item_id,
+                                       item_id=exchange_result.item_id,
                                        cursor=sync_result["next_cursor"]
             )
 
@@ -207,3 +213,42 @@ class BankingService:
         """
         logger.info("Queuing Plaid sync for item_id: %s", item_id)
         sync_transactions.delay(item_id)
+
+    # ---------------------------
+    # Utilities
+    # ---------------------------
+    def get_transactions_within_dates(self, access_token: str) -> List[Transaction]:
+        """
+        Fetch transactions for the past 90 days for a given access token.
+
+        Args:
+            access_token (str): The Plaid (or other banking provider) access token
+                                for the user's account.
+
+        Returns:
+            List[Transaction]: A list of Transaction objects within the date range.
+
+        Raises:
+            RuntimeError: If the banking provider fails to fetch transactions.
+        """
+        try:
+            end_date = datetime.today().date()
+            start_date = end_date - timedelta(days=90)
+
+            all_transactions = self.banking_provider.get_transactions(
+                access_token=access_token,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            return all_transactions
+
+        except Exception as exc:
+            logger.exception(
+                "Failed to fetch transactions for access_token %s: %s",
+                access_token,
+                exc
+            )
+            raise RuntimeError(
+                f"Error fetching transactions for access_token {access_token}"
+            ) from exc

@@ -284,7 +284,7 @@ class AccountRepository:
             self.session.rollback()
             logger.exception("Failed to recalculate balances for user %s", user_id)
             raise RuntimeError("Balance recalculation failed") from exc
-    
+
     def recalculate_balances_backward(self, user_id: str,
                                       account_id: str,
     ) -> None:
