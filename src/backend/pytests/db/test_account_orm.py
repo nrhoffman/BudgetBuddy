@@ -1,12 +1,14 @@
 import pytest
+from datetime import datetime, timezone
+from decimal import Decimal
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timezone
 
 from app.db.base import Base
 from app.db.account_orm import AccountORM
-from app.models.account import AccountType, AccountSubType
 from app.db.transaction_orm import TransactionORM
+from app.models.account import AccountSubType, AccountType
 
 
 # -----------------------
@@ -16,48 +18,96 @@ from app.db.transaction_orm import TransactionORM
 def db_session():
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session_factory = sessionmaker(bind=engine)
+    session = session_factory()
     yield session
     session.close()
 
 
 # -----------------------
-# Parametrize account creation
+# Parametrized account creation
 # -----------------------
 @pytest.mark.parametrize(
-    "account_id, name, type_, subtype, balance, user_id",
+    (
+        "account_id",
+        "name",
+        "account_type",
+        "subtype",
+        "balance",
+        "initial_balance",
+        "user_id",
+    ),
     [
-        ("acc_001", "Checking Account", AccountType.DEPOSITORY, AccountSubType.CHECKING, 1000.0, "user_001"),
-        ("acc_002", "Savings Account", AccountType.DEPOSITORY, AccountSubType.SAVINGS, 2500.50, "user_002"),
-        ("acc_003", "Loan Account", AccountType.LOAN, None, -5000.0, "user_003"),
-    ]
+        (
+            "acc_001",
+            "Checking Account",
+            AccountType.DEPOSITORY,
+            AccountSubType.CHECKING,
+            Decimal("1000.00"),
+            Decimal("1000.00"),
+            "user_001",
+        ),
+        (
+            "acc_002",
+            "Savings Account",
+            AccountType.DEPOSITORY,
+            AccountSubType.SAVINGS,
+            Decimal("2500.50"),
+            Decimal("2500.50"),
+            "user_002",
+        ),
+        (
+            "acc_003",
+            "Loan Account",
+            AccountType.LOAN,
+            None,
+            Decimal("-5000.00"),
+            Decimal("-5000.00"),
+            "user_003",
+        ),
+    ],
 )
-def test_account_orm_creation(db_session, account_id, name, type_, subtype, balance, user_id):
+def test_account_orm_creation(
+    db_session,
+    account_id,
+    name,
+    account_type,
+    subtype,
+    balance,
+    initial_balance,
+    user_id,
+):
     account = AccountORM(
         id=account_id,
         name=name,
-        type=type_,
+        type=account_type,
         subtype=subtype,
         balance=balance,
+        initial_balance=initial_balance,
         user_id=user_id,
     )
+
     db_session.add(account)
     db_session.commit()
 
-    saved = db_session.query(AccountORM).filter_by(id=account_id).first()
-    assert saved is not None
+    saved = (
+        db_session.query(AccountORM)
+        .filter_by(id=account_id)
+        .one()
+    )
+
     assert saved.id == account_id
     assert saved.name == name
-    assert saved.type == type_
+    assert saved.type == account_type
     assert saved.subtype == subtype
-    assert float(saved.balance) == float(balance)
+    assert Decimal(saved.balance) == balance
+    assert saved.initial_balance == initial_balance
     assert saved.user_id == user_id
     assert saved.transactions == []
 
 
 # -----------------------
-# Test adding transactions
+# Test transactions relationship
 # -----------------------
 def test_account_transactions_relationship(db_session):
     account = AccountORM(
@@ -65,33 +115,48 @@ def test_account_transactions_relationship(db_session):
         name="Investment",
         type=AccountType.INVESTMENT,
         subtype=None,
-        balance=5000.0,
+        balance=Decimal("5000.00"),
+        initial_balance=Decimal("5000.00"),
         user_id="user_010",
     )
+
     db_session.add(account)
     db_session.commit()
 
-    txn = TransactionORM(
+    transaction = TransactionORM(
         id="txn_001",
         account_id=account.id,
-        amount=100.0,
-        balance_after=5100.0,
-        date=datetime(2026, 1, 23, 12, 0, 0, tzinfo=timezone.utc),
+        amount=Decimal("100.00"),
+        balance_after=Decimal("5100.00"),
+        date=datetime(
+            2026,
+            1,
+            23,
+            12,
+            0,
+            0,
+            tzinfo=timezone.utc,
+        ),
         name="Deposit",
         pending=False,
         iso_currency_code="USD",
     )
 
-    account.transactions.append(txn)
+    account.transactions.append(transaction)
     db_session.commit()
 
-    saved = db_session.query(AccountORM).filter_by(id="acc_010").first()
-    assert len(saved.transactions) == 1
+    saved_account = (
+        db_session.query(AccountORM)
+        .filter_by(id="acc_010")
+        .one()
+    )
 
-    saved_txn = saved.transactions[0]
+    assert len(saved_account.transactions) == 1
+
+    saved_txn = saved_account.transactions[0]
     assert saved_txn.id == "txn_001"
-    assert float(saved_txn.amount) == 100.0
-    assert float(saved_txn.balance_after) == 5100.0
+    assert saved_txn.amount == Decimal("100.00")
+    assert saved_txn.balance_after == Decimal("5100.00")
     assert saved_txn.name == "Deposit"
     assert saved_txn.pending is False
     assert saved_txn.iso_currency_code == "USD"
@@ -106,11 +171,18 @@ def test_account_nullable_subtype(db_session):
         name="Other Account",
         type=AccountType.OTHER,
         subtype=None,
-        balance=0.0,
+        balance=Decimal("0.00"),
+        initial_balance=Decimal("0.00"),
         user_id="user_020",
     )
+
     db_session.add(account)
     db_session.commit()
 
-    saved = db_session.query(AccountORM).filter_by(id="acc_020").first()
+    saved = (
+        db_session.query(AccountORM)
+        .filter_by(id="acc_020")
+        .one()
+    )
+
     assert saved.subtype is None

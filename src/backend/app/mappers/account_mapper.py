@@ -34,6 +34,8 @@ def orm_to_domain_account(orm: AccountORM) -> Account:
             type=orm.type,
             subtype=orm.subtype,
             balance=float(orm.balance),
+            initial_balance=Decimal(orm.initial_balance),
+            initial_import_completed_at=orm.initial_import_completed_at,
             transactions=[orm_to_domain_transaction(tx) for tx in orm.transactions],
         )
     except Exception:  # pylint: disable=broad-except

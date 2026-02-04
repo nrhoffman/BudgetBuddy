@@ -1,26 +1,51 @@
-import pytest
+"""
+Tests for ORM to domain model conversions.
+
+Validates that AccountORM and TransactionORM instances are correctly
+converted to their respective domain models.
+"""
+
 from datetime import datetime, timezone
 from decimal import Decimal
+
+import pytest
 
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.models.account import Account
 from app.models.transaction import Transaction
-from app.mappers.account_mapper import orm_to_domain_account, orm_to_domain_transaction
+from app.mappers.account_mapper import (
+    orm_to_domain_account,
+    orm_to_domain_transaction,
+)
 
 
 # -----------------------
-# Helper for timezone-aware datetime
+# Helper: make timezone-aware datetime
 # -----------------------
 def make_dt(year, month, day, hour=0, minute=0):
+    """Return UTC timezone-aware datetime."""
     return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
 
 
 # -----------------------
-# Parametrized tests for transactions
+# Parametrized test: transaction conversion
 # -----------------------
 @pytest.mark.parametrize(
-    "txn_id, account_id, amount, date, name, merchant_name, primary, detailed, confidence, pending, iso_code, unofficial_code",
+    (
+        "txn_id",
+        "account_id",
+        "amount",
+        "date",
+        "name",
+        "merchant_name",
+        "primary",
+        "detailed",
+        "confidence",
+        "pending",
+        "iso_code",
+        "unofficial_code",
+    ),
     [
         (
             "txn_001",
@@ -66,6 +91,7 @@ def test_orm_to_domain_transaction(
     iso_code,
     unofficial_code,
 ):
+    """Ensure TransactionORM is converted to domain Transaction correctly."""
     orm_txn = TransactionORM(
         id=txn_id,
         account_id=account_id,
@@ -99,9 +125,10 @@ def test_orm_to_domain_transaction(
 
 
 # -----------------------
-# Test account conversion with multiple transactions
+# Test: account conversion with multiple transactions
 # -----------------------
 def test_orm_to_domain_account_multiple_transactions():
+    """Ensure AccountORM with multiple transactions converts correctly."""
     txn1 = TransactionORM(
         id="txn_001",
         account_id="acc_001",
@@ -116,9 +143,6 @@ def test_orm_to_domain_account_multiple_transactions():
         account_id="acc_001",
         amount=-50.25,
         date=make_dt(2026, 1, 24),
-        category_primary=None,
-        category_detailed=None,
-        category_confidence_level=None,
     )
 
     orm_account = AccountORM(
@@ -127,6 +151,7 @@ def test_orm_to_domain_account_multiple_transactions():
         type="depository",
         subtype=None,
         balance=1000.0,
+        initial_balance=1000.0,
         transactions=[txn1, txn2],
     )
 
@@ -143,15 +168,17 @@ def test_orm_to_domain_account_multiple_transactions():
 
 
 # -----------------------
-# Test account with no transactions
+# Test: account with no transactions
 # -----------------------
 def test_orm_to_domain_account_no_transactions():
+    """Ensure AccountORM with no transactions converts to domain account."""
     orm_account = AccountORM(
         id="acc_002",
         name="Savings",
         type="depository",
         subtype=None,
         balance=500.0,
+        initial_balance=500.0,
         transactions=[],
     )
 
@@ -163,14 +190,16 @@ def test_orm_to_domain_account_no_transactions():
 
 
 # -----------------------
-# Test error handling: invalid amount in transaction
+# Test: invalid transaction amount triggers exception
 # -----------------------
 def test_orm_to_domain_transaction_invalid_amount():
+    """Ensure invalid amount in TransactionORM raises an exception."""
     txn = TransactionORM(
         id="txn_invalid",
         account_id="acc_003",
         amount="not_a_number",
         date=make_dt(2026, 1, 23),
     )
+
     with pytest.raises(Exception):
         orm_to_domain_transaction(txn)

@@ -1,5 +1,10 @@
+"""
+Parametrized tests for Account domain model and parsing functions.
+"""
+
 import pytest
 from decimal import Decimal
+from datetime import datetime
 
 from app.models.account import (
     Account,
@@ -9,8 +14,9 @@ from app.models.account import (
     parse_account_subtype,
 )
 
+
 # -----------------------------
-# Tests for AccountType parsing
+# Parametrized tests for AccountType parsing
 # -----------------------------
 @pytest.mark.parametrize(
     "input_value, expected",
@@ -26,11 +32,12 @@ from app.models.account import (
     ],
 )
 def test_parse_account_type(input_value, expected):
+    """Ensure parse_account_type returns the correct AccountType enum."""
     assert parse_account_type(input_value) == expected
 
 
 # -----------------------------
-# Tests for AccountSubType parsing
+# Parametrized tests for AccountSubType parsing
 # -----------------------------
 @pytest.mark.parametrize(
     "input_value, expected",
@@ -55,52 +62,43 @@ def test_parse_account_type(input_value, expected):
     ],
 )
 def test_parse_account_subtype(input_value, expected):
+    """Ensure parse_account_subtype returns the correct AccountSubType enum."""
     assert parse_account_subtype(input_value) == expected
 
 
 # -----------------------------
-# Tests for Account model
+# Parametrized tests for Account model creation
 # -----------------------------
-def test_account_model_creation():
+@pytest.mark.parametrize(
+    "account_id, name, type_, subtype, balance, transactions",
+    [
+        ("123", "My Checking", AccountType.DEPOSITORY, AccountSubType.CHECKING,
+         Decimal("100.50"), []),
+        ("456", "Savings Account", AccountType.DEPOSITORY, AccountSubType.SAVINGS,
+         Decimal("500.00"), None),
+        ("789", "Unknown Account", AccountType.OTHER, None, Decimal("0.00"), None),
+    ],
+)
+def test_account_model(account_id, name, type_, subtype, balance, transactions):
+    """Ensure Account model initializes correctly with various inputs."""
     account = Account(
-        id="123",
-        name="My Checking",
-        type=AccountType.DEPOSITORY,
-        subtype=AccountSubType.CHECKING,
-        balance=Decimal("100.50"),
-        transactions=[],
+        id=account_id,
+        name=name,
+        type=type_,
+        subtype=subtype,
+        balance=balance,
+        transactions=transactions or [],
+        initial_balance=balance,
+        initial_import_completed_at=datetime.utcnow(),
     )
 
-    assert account.id == "123"
-    assert account.name == "My Checking"
-    assert account.type == AccountType.DEPOSITORY
-    assert account.subtype == AccountSubType.CHECKING
-    assert account.balance == Decimal("100.50")
+    assert account.id == account_id
+    assert account.name == name
+    assert account.type == type_
+    assert account.subtype == subtype
+    assert account.balance == balance
     assert isinstance(account.transactions, list)
-    assert len(account.transactions) == 0
-
-
-def test_account_model_default_transactions():
-    """Ensure transactions default to an empty list if not provided."""
-    account = Account(
-        id="456",
-        name="Savings Account",
-        type=AccountType.DEPOSITORY,
-        subtype=AccountSubType.SAVINGS,
-        balance=Decimal("500.00"),
-    )
-
-    assert account.transactions == []
-
-
-def test_account_model_allows_null_subtype():
-    """Subtype is optional and may be None."""
-    account = Account(
-        id="789",
-        name="Unknown Account",
-        type=AccountType.OTHER,
-        subtype=None,
-        balance=Decimal("0.00"),
-    )
-
-    assert account.subtype is None
+    if transactions is None:
+        assert account.transactions == []
+    else:
+        assert account.transactions == transactions

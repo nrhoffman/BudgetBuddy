@@ -1,12 +1,13 @@
 """
 Domain models for accounts.
 
-Includes types, subtypes, and conversion utilities for account data.
+Includes account types, subtypes, and conversion utilities for account data.
 """
 
 import enum
+from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from pydantic import BaseModel, Field
 from app.logger import logger
@@ -58,15 +59,17 @@ class Account(BaseModel):
     type: AccountType
     subtype: Optional[AccountSubType]
     balance: Decimal
+    initial_balance: Optional[Decimal] = None
+    initial_import_completed_at: Optional[datetime] = None
     transactions: List[Transaction] = Field(default_factory=list)
 
 
-def parse_account_type(value) -> AccountType:
+def parse_account_type(value: Any) -> AccountType:
     """
     Convert a value to an AccountType enum.
 
     Args:
-        value: The raw input value.
+        value (Any): The raw input value.
 
     Returns:
         AccountType: A valid AccountType enum; defaults to OTHER if invalid.
@@ -78,12 +81,12 @@ def parse_account_type(value) -> AccountType:
         return AccountType.OTHER
 
 
-def parse_account_subtype(value) -> AccountSubType:
+def parse_account_subtype(value: Any) -> AccountSubType:
     """
     Convert a value to an AccountSubType enum.
 
     Args:
-        value: The raw input value.
+        value (Any): The raw input value.
 
     Returns:
         AccountSubType: A valid AccountSubType enum; defaults to OTHER if invalid.

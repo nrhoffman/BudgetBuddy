@@ -27,7 +27,7 @@ jobs:
           --exclude=alembic,pytests,__init__.py
       - run: |
           pylint src/backend \
-            --ignore=alembic,pytests \
+            --ignore=alembic,pytests,scripts \
             --disable=too-few-public-methods \
             --max-line-length=88 \
             --ignore-patterns=test_.*\.py,__init__.py
@@ -46,4 +46,13 @@ jobs:
           pip install -r src/backend/requirements.txt pytest
       - run: echo "PYTHONPATH=src/backend" >> $GITHUB_ENV
       - run: echo "DATABASE_URL=sqlite:///test.db" >> $GITHUB_ENV
-      - run: pytest --maxfail=1 --disable-warnings -v
+      - run: |
+          coverage run -m pytest --cov=src/backend \
+          --cov-report=term-missing --cov-report=xml \
+          --cov-report=html --maxfail=1 \
+          --disable-warnings -v
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov

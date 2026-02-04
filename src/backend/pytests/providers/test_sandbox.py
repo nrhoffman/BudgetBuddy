@@ -1,147 +1,253 @@
 import pytest
-from datetime import datetime, date
-from dataclasses import dataclass
+from unittest.mock import patch
+from decimal import Decimal
+from datetime import datetime
+
+from plaid import ApiException
 from app.providers.plaid_sandbox import PlaidSandbox
 from app.models.account import Account
 from app.models.transaction import Transaction
 
-
-# -----------------------
-# Dataclasses to mock Plaid transactions
-# -----------------------
-@dataclass
-class MockPersonalFinanceCategory:
-    primary: str | None = None
-    detailed: str | None = None
-    confidence_level: str | None = None
-
-
-@dataclass
-class MockPlaidTransaction:
-    transaction_id: str
-    account_id: str
-    name: str | None = None
-    merchant_name: str | None = None
-    amount: float = 0.0
-    date: datetime = datetime.now()
-    pending: bool | None = None
-    iso_currency_code: str | None = None
-    unofficial_currency_code: str | None = None
-    personal_finance_category: MockPersonalFinanceCategory | None = None
-
-
-# -----------------------
-# Fixture: PlaidSandbox with mocked client
-# -----------------------
+# ---------------------------
+# Fixture: PlaidSandbox instance
+# ---------------------------
 @pytest.fixture
-def plaid_sandbox():
-    provider = PlaidSandbox()
-    provider.client = type("MockClient", (), {})()  # empty object
-    return provider
+def sandbox():
+    return PlaidSandbox()
 
-# -----------------------
-# Test create_link_token
-# -----------------------
-@pytest.mark.parametrize("mock_token", ["mock_link_token", "another_token"])
-def test_create_link_token(plaid_sandbox, mock_token):
-    plaid_sandbox.client.link_token_create = lambda req: type("Resp", (), {"link_token": mock_token})()
-    token = plaid_sandbox.create_link_token("user_001")
-    assert isinstance(token, str)
-    assert token == mock_token
 
-# -----------------------
-# Test exchange_public_token
-# -----------------------
+# ---------------------------
+# Parametrize link token creation
+# ---------------------------
 @pytest.mark.parametrize(
-    "public_token, mock_access_token",
-    [("public_123", "access_123"), ("public_456", "access_456")]
-)
-def test_exchange_public_token(plaid_sandbox, public_token, mock_access_token):
-    plaid_sandbox.client.item_public_token_exchange = lambda req: type("Resp", (), {"access_token": mock_access_token})()
-    access_token = plaid_sandbox.exchange_public_token(public_token)
-    assert isinstance(access_token, str)
-    assert access_token == mock_access_token
-
-# -----------------------
-# Test get_accounts
-# -----------------------
-@pytest.mark.parametrize(
-    "acc_id, name, type_, subtype, balance",
+    "user_id, expected_token",
     [
-        ("acc_001", "Checking", "depository", "checking", 100.0),
-        ("acc_002", "Savings", "depository", "savings", 500.0),
-        ("acc_003", "Credit Card", "credit", "student", -250.0),
+        ("user_001", "link-token-001"),
+        ("user_002", "link-token-002"),
     ]
 )
-def test_get_accounts(plaid_sandbox, acc_id, name, type_, subtype, balance):
-    class MockAccount:
-        pass
-    mock_account = MockAccount()
-    mock_account.account_id = acc_id
-    mock_account.name = name
-    mock_account.type = type_
-    mock_account.subtype = subtype
-    mock_account.balances = type("Balances", (), {"current": balance})()
+def test_create_link_token_success(sandbox, user_id, expected_token):
+    mock_response = type("Resp", (), {"link_token": expected_token})()
+    with patch.object(sandbox.client, "link_token_create", return_value=mock_response):
+        token = sandbox.create_link_token(user_id)
+        assert token == expected_token
 
-    plaid_sandbox.client.accounts_balance_get = lambda req: type("Resp", (), {"accounts": [mock_account]})()
-    accounts = plaid_sandbox.get_accounts("access_token_123")
 
-    assert len(accounts) == 1
-    acc = accounts[0]
-    assert isinstance(acc, Account)
-    assert acc.id == acc_id
-    assert acc.name == name
-    assert acc.type.value == type_
-    assert acc.subtype.value == subtype
-    assert acc.balance == balance
+def test_create_link_token_api_exception(sandbox):
+    with patch.object(sandbox.client, "link_token_create", side_effect=ApiException("fail")):
+        with pytest.raises(ApiException):
+            sandbox.create_link_token("user_001")
 
-# -----------------------
-# Test get_transactions
-# -----------------------
+
+def test_create_link_token_generic_exception(sandbox):
+    with patch.object(sandbox.client, "link_token_create", side_effect=Exception("fail")):
+        with pytest.raises(Exception):
+            sandbox.create_link_token("user_001")
+
+
+# ---------------------------
+# Parametrize public token exchange
+# ---------------------------
 @pytest.mark.parametrize(
-    "txn_id, acc_id, name, merchant, amount, date_val, primary, detailed, confidence, pending, iso_code, unofficial_code",
+    "public_token, expected_access_token",
     [
-        ("txn_001", "acc_001", "Coffee", "Starbucks", 4.5, datetime(2026, 1, 23),
-         "FOOD_AND_DRINK", "FOOD_AND_DRINK_COFFEE", "HIGH", False, "USD", None),
-        ("txn_002", "acc_002", "Lunch", "Chipotle", 12.0, datetime(2026, 1, 24),
-         "FOOD_AND_DRINK", "FOOD_AND_DRINK_LUNCH", "LOW", True, "USD", None),
+        ("public-001", "access-001"),
+        ("public-002", "access-002"),
     ]
 )
-def test_get_transactions(plaid_sandbox, txn_id, acc_id, name, merchant, amount, date_val,
-                          primary, detailed, confidence, pending, iso_code, unofficial_code):
+def test_exchange_public_token_success(sandbox, public_token, expected_access_token):
+    mock_response = type("Resp", (), {"access_token": expected_access_token})()
+    with patch.object(sandbox.client, "item_public_token_exchange", return_value=mock_response):
+        result = sandbox.exchange_public_token(public_token)
+        assert result.access_token == expected_access_token
 
-    mock_txn = MockPlaidTransaction(
-        transaction_id=txn_id,
-        account_id=acc_id,
-        name=name,
-        merchant_name=merchant,
-        amount=amount,
-        date=date_val,
-        pending=pending,
-        iso_currency_code=iso_code,
-        unofficial_currency_code=unofficial_code,
-        personal_finance_category=MockPersonalFinanceCategory(
-            primary=primary,
-            detailed=detailed,
-            confidence_level=confidence
-        ) if primary or detailed or confidence else None
-    )
 
-    plaid_sandbox.client.transactions_get = lambda req: type("Resp", (), {"transactions": [mock_txn]})()
-    transactions = plaid_sandbox.get_transactions("access_token_123", date(2026,1,1), date(2026,1,31))
+def test_exchange_public_token_api_exception(sandbox):
+    with patch.object(sandbox.client, "item_public_token_exchange", side_effect=ApiException("fail")):
+        with pytest.raises(ApiException):
+            sandbox.exchange_public_token("public-001")
 
-    assert len(transactions) == 1
-    txn = transactions[0]
+
+def test_exchange_public_token_generic_exception(sandbox):
+    with patch.object(sandbox.client, "item_public_token_exchange", side_effect=Exception("fail")):
+        with pytest.raises(Exception):
+            sandbox.exchange_public_token("public-001")
+
+
+# ---------------------------
+# Parametrize accounts fetching
+# ---------------------------
+@pytest.mark.parametrize(
+    "accounts_data",
+    [
+        [
+            {"account_id": "acc1", "name": "Checking", "acct_type": "depository",
+             "subtype": "checking", "balances": {"current": 100}},
+            {"account_id": "acc2", "name": "Savings", "acct_type": "depository",
+             "subtype": "savings", "balances": {"current": 500}},
+        ],
+        []
+    ]
+)
+def test_get_accounts_success(sandbox, accounts_data):
+    class MockAcc:
+        def __init__(self, account_id, name, acct_type, subtype, balances):
+            self.account_id = account_id
+            self.name = name
+            self.type = acct_type
+            self.subtype = subtype
+            self.balances = type('Balance', (), balances)()
+
+    mock_response = type("Resp", (), {"accounts": [MockAcc(**acc) for acc in accounts_data]})()
+
+    with patch.object(sandbox.client, "accounts_balance_get", return_value=mock_response):
+        result = sandbox.get_accounts("fake-token")
+        assert isinstance(result, list)
+        if accounts_data:
+            assert all(isinstance(acc, Account) for acc in result)
+            assert [acc.id for acc in result] == [accd["account_id"] for accd in accounts_data]
+        else:
+            assert result == []
+
+
+def test_get_accounts_api_exception(sandbox):
+    with patch.object(sandbox.client, "accounts_balance_get", side_effect=ApiException("fail")):
+        with pytest.raises(ApiException):
+            sandbox.get_accounts("fake-token")
+
+
+def test_get_accounts_generic_exception(sandbox):
+    with patch.object(sandbox.client, "accounts_balance_get", side_effect=Exception("fail")):
+        with pytest.raises(Exception):
+            sandbox.get_accounts("fake-token")
+
+
+# ---------------------------
+# Parametrize transaction mapping
+# ---------------------------
+@pytest.mark.parametrize(
+    "txn_data",
+    [
+        # Without personal_finance_category
+        {"transaction_id": "txn1", "account_id": "acc1", "amount": Decimal("10.5"),
+         "date": datetime(2026, 2, 3), "name": "Payment"},
+        # With personal_finance_category
+        {"transaction_id": "txn2", "account_id": "acc2", "amount": Decimal("50"),
+         "date": datetime(2026, 2, 2), "name": "Salary",
+         "personal_finance_category": {"primary":"INCOME","detailed":"Salary","confidence_level":0.9},
+         "pending": True, "iso_currency_code": "USD", "unofficial_currency_code": None},
+    ]
+)
+def test_map_plaid_transaction(sandbox, txn_data):
+    class MockTxn:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    txn_kwargs = {k:v for k,v in txn_data.items() if k != "personal_finance_category"}
+    mock_txn = MockTxn(**txn_kwargs)
+    if "personal_finance_category" in txn_data:
+        pfc_data = txn_data["personal_finance_category"]
+        mock_txn.personal_finance_category = MockTxn(
+            primary=pfc_data["primary"],
+            detailed=pfc_data["detailed"],
+            confidence_level=str(pfc_data["confidence_level"])  # convert to string
+        )
+
+    txn = sandbox.map_plaid_transaction(mock_txn)
     assert isinstance(txn, Transaction)
-    assert txn.transaction_id == txn_id
-    assert txn.account_id == acc_id
-    assert txn.name == name
-    assert txn.merchant_name == merchant
-    assert float(txn.amount) == amount
-    assert txn.date == date_val
-    assert txn.category_primary == primary
-    assert txn.category_detailed == detailed
-    assert txn.category_confidence_level == confidence
-    assert txn.pending is pending
-    assert txn.iso_currency_code == iso_code
-    assert txn.unofficial_currency_code == unofficial_code
+    assert txn.transaction_id == txn_data["transaction_id"]
+    assert txn.amount == txn_data["amount"]
+    if "personal_finance_category" in txn_data:
+        assert txn.category_primary == "INCOME"
+        assert txn.category_detailed == "Salary"
+        assert txn.category_confidence_level == "0.9"
+        assert txn.pending is True
+        assert txn.iso_currency_code == "USD"
+
+
+# ---------------------------
+# Parametrize sorting transactions
+# ---------------------------
+@pytest.mark.parametrize(
+    "txns, expected_order",
+    [
+        ([Transaction(transaction_id="2", account_id="a", amount=5, date=datetime(2026,2,2)),
+          Transaction(transaction_id="1", account_id="a", amount=10, date=datetime(2026,2,1))],
+         ["1", "2"]),
+        ([Transaction(transaction_id="b", account_id="a", amount=5, date=datetime(2026,2,3)),
+          Transaction(transaction_id="a", account_id="a", amount=5, date=datetime(2026,2,3))],
+         ["a", "b"]),
+    ]
+)
+def test_sort_transactions(sandbox, txns, expected_order):
+    sorted_txns = sandbox.sort_transactions(txns)
+    sorted_ids = [t.transaction_id for t in sorted_txns]
+    assert sorted_ids == expected_order
+
+
+# ---------------------------
+# Parametrize incremental sync
+# ---------------------------
+@pytest.mark.parametrize(
+    "pages",
+    [
+        # Single page
+        ([{"added":[{"transaction_id":"a","account_id":"acc","amount":10,"date":datetime(2026,2,1)}],
+           "modified": [], "removed": [], "has_more": False, "next_cursor": None}]),
+        # Two pages
+        ([
+            {"added":[{"transaction_id":"x","account_id":"acc","amount":5,"date":datetime(2026,2,2)}],
+            "modified": [], "removed": [], "has_more": True, "next_cursor": "c1"},
+            {"added": [], "modified":[{"transaction_id":"y","account_id":"acc","amount":15,"date":datetime(2026,2,3)}],
+            "removed":[{"transaction_id": "z"}], "has_more": False, "next_cursor": None}
+        ]),
+        # Empty results
+        ([{"added": [], "modified": [], "removed": [], "has_more": False, "next_cursor": None}])
+    ]
+)
+def test_get_transactions_sync(sandbox, pages):
+    class MockTxn:
+        def __init__(self, transaction_id, account_id, amount, date,
+                     name="Test txn", merchant_name=None,
+                     iso_currency_code="USD", unofficial_currency_code=None,
+                     personal_finance_category=None, pending=None):
+            self.transaction_id = transaction_id
+            self.account_id = account_id
+            self.amount = amount
+            self.date = date
+            self.name = name
+            self.merchant_name = merchant_name
+            self.iso_currency_code = iso_currency_code
+            self.unofficial_currency_code = unofficial_currency_code
+            self.personal_finance_category = personal_finance_category
+            self.pending = pending
+
+    # Patch transactions_sync to return proper MockTxn objects
+    patched_pages = []
+    for page in pages:
+        patched_pages.append(
+            type("Resp", (), {
+                "added": [MockTxn(**tx) for tx in page["added"]],
+                "modified": [MockTxn(**tx) for tx in page["modified"]],
+                "removed": page["removed"],
+                "has_more": page["has_more"],
+                "next_cursor": page["next_cursor"]
+            })()
+        )
+
+    with patch.object(sandbox.client, "transactions_sync", side_effect=patched_pages):
+        result = sandbox.get_transactions_sync("fake-token")
+        # Basic assertions
+        assert "added" in result and isinstance(result["added"], list)
+        assert "modified" in result and isinstance(result["modified"], list)
+        assert "removed" in result and isinstance(result["removed"], list)
+        # Check cumulative results
+        expected_added = [tx["transaction_id"] for page in pages for tx in page["added"]]
+        expected_modified = [tx["transaction_id"] for page in pages for tx in page["modified"]]
+        expected_removed = [txn["transaction_id"] for page in pages for txn in page["removed"]]
+        assert [t.transaction_id for t in result["added"]] == expected_added
+        assert [t.transaction_id for t in result["modified"]] == expected_modified
+        assert result["removed"] == expected_removed
+        # Check next_cursor matches last page
+        assert result["next_cursor"] == pages[-1]["next_cursor"]

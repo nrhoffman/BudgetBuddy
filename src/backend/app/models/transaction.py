@@ -1,56 +1,52 @@
 """
-Pydantic models for representing financial transactions and transaction updates.
+Domain models for financial transactions.
+
+Includes Transaction and UpdateTransaction schemas with validation.
 """
 
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
 
+from pydantic import BaseModel, Field, field_validator
 from app.logger import logger
 
 
 class UpdateTransaction(BaseModel):
     """
-    Payload for updating editable fields on an existing transaction.
+    Schema for updating transaction categories.
 
-    Only user-modifiable fields should be included here. Fields are optional
-    to allow partial updates.
-    
     Attributes:
-        category_primary: High-level transaction category (e.g. "Food").
-        category_detailed: More specific transaction category
-            (e.g. "Restaurants").
+        category_primary (Optional[str]): Primary category.
+        category_detailed (Optional[str]): Detailed category.
+        category_confidence_level (Optional[str]): Confidence level, default 'MANUAL'.
     """
+
     category_primary: Optional[str] = None
     category_detailed: Optional[str] = None
+    category_confidence_level: Optional[str] = "MANUAL"
 
 
 class Transaction(BaseModel):
     """
-    Represents a single financial transaction associated with an account.
-
-    This model is used for reading and returning transaction data. Some fields
-    originate from external providers (e.g. transaction name or merchant),
-    while others may be user-defined or system-derived.
+    Domain model representing a financial transaction.
 
     Attributes:
-        transaction_id: Unique identifier for the transaction.
-        account_id: Identifier of the account this transaction belongs to.
-        amount: Transaction amount. Must be non-zero.
-        date: Date and time the transaction occurred.
-        balance_after: Account balance immediately after this transaction,
-            if available.
-        name: Provider-supplied or cleaned transaction description.
-        merchant_name: Normalized merchant name, if recognized.
-        category_primary: High-level transaction category.
-        category_detailed: More specific transaction category.
-        category_confidence_level: Confidence level associated with the
-            category assignment.
-        pending: Indicates whether the transaction is pending.
-        iso_currency_code: ISO 4217 currency code (e.g. "USD").
-        unofficial_currency_code: Non-ISO currency code, if applicable.
+        transaction_id (str): Unique transaction ID.
+        account_id (str): ID of the associated account.
+        amount (Decimal): Transaction amount; must not be zero.
+        date (datetime): Transaction timestamp.
+        balance_after (Optional[Decimal]): Account balance after transaction.
+        name (Optional[str]): Transaction name.
+        merchant_name (Optional[str]): Merchant name.
+        category_primary (Optional[str]): Primary category.
+        category_detailed (Optional[str]): Detailed category.
+        category_confidence_level (Optional[str]): Confidence level.
+        pending (Optional[bool]): True if transaction is pending.
+        iso_currency_code (Optional[str]): ISO currency code.
+        unofficial_currency_code (Optional[str]): Non-standard currency code.
     """
+
     transaction_id: str = Field(..., alias="id")
     account_id: str
     amount: Decimal
@@ -70,11 +66,20 @@ class Transaction(BaseModel):
     }
 
     @field_validator("amount")
-    def amount_not_zero(cls, v: Decimal) -> Decimal:  # pylint: disable=no-self-argument
+    def amount_not_zero(cls, value: Decimal) -> Decimal:  # pylint: disable=no-self-argument
         """
         Validate that the transaction amount is not zero.
+
+        Args:
+            value (Decimal): Transaction amount.
+
+        Returns:
+            Decimal: Validated transaction amount.
+
+        Raises:
+            ValueError: If amount is zero.
         """
-        if v == 0:
+        if value == 0:
             logger.debug("Validation failed: transaction amount cannot be zero")
             raise ValueError("Transaction amount cannot be zero")
-        return v
+        return value
