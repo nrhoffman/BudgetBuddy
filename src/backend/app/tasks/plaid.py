@@ -48,6 +48,7 @@ def sync_transactions(self, item_id: str) -> None:
         cursor: Optional[str] = cursor_record.cursor if cursor_record else None
 
         sync_result = plaid.get_transactions_sync(token.access_token, cursor)
+        print(sync_result)
 
         # # Log first added transaction for debugging
         # if sync_result.get("added"):

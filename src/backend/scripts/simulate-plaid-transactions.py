@@ -2,12 +2,16 @@ import os
 import json
 import requests
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ------------------------
 # Configuration
 # ------------------------
 PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
 PLAID_SECRET = os.getenv("PLAID_SECRET")
-ACCESS_TOKEN = "access-sandbox-247cba53-8112-4982-9256-1c697a0fd422"
+ACCESS_TOKEN = ""
 PLAID_ENV = "https://sandbox.plaid.com"
 
 
@@ -19,19 +23,39 @@ payload = {
     "access_token": ACCESS_TOKEN,
     "transactions": [
         {
-            "account_id": "WQ7R1RVWy7TeK1p8yL5XHRPx4kQvLDuxo4jar",
-            "amount": 100.50,
-            "date_transacted": "2025-02-20",
-            "date_posted": "2025-02-20",
-            "description": "Test Purchase A"
+        "amount": 5.75,
+        "description": "Starbucks",
+        "date_posted": "2026-02-03",
+        "date_transacted": "2026-02-03",
+        "iso_currency_code": "USD",
         },
         {
-            "account_id": "WQ7R1RVWy7TeK1p8yL5XHRPx4kQvLDuxo4jar",
-            "amount": -25.75,
-            "date_transacted": "2025-02-21",
-            "date_posted": "2025-02-21",
-            "description": "Refund B",
-            "iso_currency_code": "USD"
+        "amount": 42.30,
+        "description": "Starbucks",
+        "date_posted": "2026-02-02",
+        "date_transacted": "2026-02-02",
+        "iso_currency_code": "USD",
+        },
+        {
+        "amount": -1500.00,
+        "description": "United Airlines",
+        "date_posted": "2026-02-01",
+        "date_transacted": "2026-02-01",
+        "iso_currency_code": "USD",
+        },
+        {
+        "amount": 18.90,
+        "description": "Kohls",
+        "date_posted": "2026-01-29",
+        "date_transacted": "2026-01-29",
+        "iso_currency_code": "USD",
+        },
+        {
+        "amount": 100.00,
+        "description": "atm withdrawal",
+        "date_posted": "2026-01-28",
+        "date_transacted": "2026-01-28",
+        "iso_currency_code": "USD",
         }
     ]
 }
