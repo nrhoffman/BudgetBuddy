@@ -161,9 +161,10 @@ class AccountService:
                 account_name=account_name,
                 balance=balance
             )
-            logger.info("Account updated: account_id=%s, user_id=%s",
-                        account_id,
-                        user_id
+            logger.info(
+                "Account updated: account_id=%s, user_id=%s",
+                account_id,
+                user_id
             )
             return {"message": "Account updated successfully"}
 
@@ -206,9 +207,10 @@ class AccountService:
             return {"message": "Account deleted successfully"}
 
         except ValueError as exc:
-            logger.warning("Attempted to delete non-existing account %s: %s",
-                           account_id,
-                           exc
+            logger.warning(
+                "Attempted to delete non-existing account %s: %s",
+                account_id,
+                exc
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

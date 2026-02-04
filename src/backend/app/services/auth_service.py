@@ -110,10 +110,11 @@ class AuthService:
         try:
             user = self.user_repo.get_by_username(username)
         except Exception as exc:
-            logger.error("Failed to fetch user %s for login: %s",
-                         username,
-                         exc,
-                         exc_info=True
+            logger.error(
+                "Failed to fetch user %s for login: %s",
+                username,
+                exc,
+                exc_info=True
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
