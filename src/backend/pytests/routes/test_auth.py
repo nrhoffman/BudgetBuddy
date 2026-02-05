@@ -1,91 +1,101 @@
 import pytest
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
-from uuid import UUID, uuid4
+from unittest.mock import Mock
 
-from app.main import app
-from app.routes import auth
-from app.models.user import User, UserRole
+from app.routes.auth import login, create_user, check_login
+from app.models.user import User, UserCreate
+from app.models.auth import LoginRequest
 
-@pytest.fixture
-def test_client():
-    return TestClient(app)
 
-@pytest.fixture
-def mock_budget_service():
-    return MagicMock()
+# ---------------------------
+# Test data and fixtures
+# ---------------------------
 
 @pytest.fixture
-def fake_user():
+def mock_auth_service():
+    return Mock()
+
+
+@pytest.fixture
+def test_user_create():
+    return UserCreate(username="testuser", email="test@example.com", password="secret", role="user")
+
+
+@pytest.fixture
+def test_user():
     return User(
-        id=str(uuid4()),
-        username="alice",
-        email="alice@example.com",
-        hashed_password="hashed_pw",
-        role=UserRole.USER
+        id="123",
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed_secret",
+        role="user",
     )
 
-@pytest.fixture(autouse=True)
-def override_dependencies(mock_budget_service, fake_user):
-    app.dependency_overrides = {
-        auth.get_budget_service: lambda: mock_budget_service,
-        auth.get_current_user: lambda: fake_user,
-    }
-    yield
-    auth.dependency_overrides = {}
 
-# -----------------------
-# Parametrized login
-# -----------------------
+# ---------------------------
+# login endpoint tests
+# ---------------------------
+
 @pytest.mark.parametrize(
-    "login_data, expected_status, expected_response",
+    "username,password,expected_result,raises_exception",
     [
-        ({"username": "alice", "password": "pw123"}, 200, {"message": "Login successful", "access_token": "mock_token", "token_type": "bearer"}),
-        ({"username": "bob", "password": "wrongpw"}, 401, {"detail": "Invalid credentials"}),
-    ]
+        ("validuser", "validpass", {"token": "abc"}, False),
+        ("invaliduser", "wrongpass", None, True),
+    ],
 )
-def test_login_param(test_client, mock_budget_service, login_data, expected_status, expected_response):
-    if expected_status == 200:
-        mock_budget_service.login.return_value = expected_response
+def test_login(username, password, expected_result, raises_exception, mock_auth_service):
+    req = LoginRequest(username=username, password=password)
+
+    if raises_exception:
+        mock_auth_service.login.side_effect = Exception("Invalid credentials")
+        with pytest.raises(HTTPException) as exc:
+            login(req, auth_service=mock_auth_service)
+        assert exc.value.status_code == 401
+        assert "Invalid credentials" in exc.value.detail
     else:
-        mock_budget_service.login.side_effect = HTTPException(status_code=401, detail="Invalid credentials")
+        mock_auth_service.login.return_value = expected_result
+        result = login(req, auth_service=mock_auth_service)
+        assert result == expected_result
+        mock_auth_service.login.assert_called_once_with(username=username, password=password)
 
-    response = test_client.post("/api/auth/login", json=login_data)
-    assert response.status_code == expected_status
-    assert response.json() == expected_response
 
-# -----------------------
-# Parametrized sign-up
-# -----------------------
+# ---------------------------
+# create_user endpoint tests
+# ---------------------------
+
+@pytest.mark.parametrize("raises_exception", [False, True])
+def test_create_user(test_user_create, test_user, mock_auth_service, raises_exception):
+    if raises_exception:
+        mock_auth_service.create_user.side_effect = Exception("Creation failed")
+        with pytest.raises(HTTPException) as exc:
+            create_user(test_user_create, auth_service=mock_auth_service)
+        assert exc.value.status_code == 500
+        assert "Failed to create user" in exc.value.detail
+    else:
+        mock_auth_service.create_user.return_value = test_user
+        result = create_user(test_user_create, auth_service=mock_auth_service)
+        assert result == test_user
+        mock_auth_service.create_user.assert_called_once()
+        assert result.username == test_user_create.username
+
+
+# ---------------------------
+# check_login endpoint tests
+# ---------------------------
+
 @pytest.mark.parametrize(
-    "user_data",
+    "current_user,expected_status,raises_exception",
     [
-        {"username": "alice", "email": "alice@example.com", "password": "pw123", "role": "user"},
-        {"username": "bob", "email": "bob@example.com", "password": "pw456", "role": "admin"},
-    ]
+        (User(id="1", username="u1", email="u1@test.com", hashed_password="x", role="user"), 200, False),
+        (None, None, True),
+    ],
 )
-def test_sign_up_param(test_client, mock_budget_service, user_data):
-    created_user = User(
-        id=str(uuid4()),
-        username=user_data["username"],
-        email=user_data["email"],
-        hashed_password="hashed_pw",
-        role=UserRole(user_data["role"])
-    )
-    mock_budget_service.create_user.return_value = created_user
-
-    response = test_client.post("/api/auth/sign-up", json=user_data)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["username"] == user_data["username"]
-    assert data["email"] == user_data["email"]
-    assert data["role"] == user_data["role"]
-    UUID(data["id"])
-# -----------------------
-# Check-login (authenticated)
-# -----------------------
-def test_check_login_authenticated(test_client):
-    response = test_client.post("/api/auth/check-login")
-    assert response.status_code == 200
-    assert response.json() == {"message": "success"}
+def test_check_login(current_user, expected_status, raises_exception):
+    if raises_exception:
+        with pytest.raises(HTTPException) as exc:
+            check_login(_current_user=current_user)
+        assert exc.value.status_code == 401
+        assert "Not authenticated" in exc.value.detail
+    else:
+        result = check_login(_current_user=current_user)
+        assert result == {"message": "success"}

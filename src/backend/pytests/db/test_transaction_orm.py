@@ -1,11 +1,20 @@
-import pytest
+"""
+Tests for the TransactionORM model.
+
+Covers creation, nullable fields, relationships, and default timestamps.
+"""
+
 from datetime import datetime, timezone
+from decimal import Decimal
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
+from app.models.account import AccountType
 
 
 # -----------------------
@@ -13,38 +22,56 @@ from app.db.transaction_orm import TransactionORM
 # -----------------------
 @pytest.fixture
 def db_session():
+    """Provide a SQLAlchemy session using in-memory SQLite."""
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session_factory = sessionmaker(bind=engine)
+    session = session_factory()
     yield session
     session.close()
 
 
 # -----------------------
-# Helper to normalize datetimes for SQLite comparison
+# Helper: normalize datetime
 # -----------------------
-def normalize_datetime(dt):
-    """Make datetime timezone-aware UTC if naive."""
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+def normalize_datetime(value):
+    """Ensure datetime is timezone-aware UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 # -----------------------
-# Parametrized transaction creation test
+# Parametrized transaction creation
 # -----------------------
 @pytest.mark.parametrize(
-    "txn_id, account_id, amount, date, name, merchant_name, category, pending, iso_code, unofficial_code",
+    (
+        "txn_id",
+        "account_id",
+        "amount",
+        "balance_after",
+        "date",
+        "name",
+        "merchant_name",
+        "category_primary",
+        "category_detailed",
+        "category_confidence_level",
+        "pending",
+        "iso_code",
+        "unofficial_code",
+    ),
     [
         (
             "txn_001",
             "acc_001",
-            100.0,
+            Decimal("100.00"),
+            Decimal("1100.00"),
             datetime(2026, 1, 23, 12, 0, tzinfo=timezone.utc),
             "Groceries",
             "Whole Foods",
-            ["Food", "Groceries"],
+            "FOOD_AND_DRINK",
+            "FOOD_AND_DRINK_GROCERIES",
+            "HIGH",
             False,
             "USD",
             None,
@@ -52,11 +79,14 @@ def normalize_datetime(dt):
         (
             "txn_002",
             "acc_001",
-            -50.25,
+            Decimal("-50.25"),
+            Decimal("1049.75"),
             datetime(2026, 1, 24, 15, 30, tzinfo=timezone.utc),
             "Refund",
             "Amazon",
-            ["Shopping"],
+            "SHOPPING",
+            "SHOPPING_ONLINE",
+            "LOW",
             False,
             "USD",
             None,
@@ -64,8 +94,11 @@ def normalize_datetime(dt):
         (
             "txn_003",
             "acc_002",
-            200.0,
+            Decimal("200.00"),
+            Decimal("1200.00"),
             datetime(2026, 1, 25, 9, 45, tzinfo=timezone.utc),
+            None,
+            None,
             None,
             None,
             None,
@@ -80,80 +113,105 @@ def test_transaction_orm_creation(
     txn_id,
     account_id,
     amount,
+    balance_after,
     date,
     name,
     merchant_name,
-    category,
+    category_primary,
+    category_detailed,
+    category_confidence_level,
     pending,
     iso_code,
     unofficial_code,
 ):
+    """Ensure transactions persist correctly with all fields."""
     account = AccountORM(
         id=account_id,
         name="Test Account",
-        type="depository",
-        balance=1000.0,
+        type=AccountType.DEPOSITORY,
+        balance=Decimal("1000.00"),
+        initial_balance=Decimal("1000.00"),
         user_id="user_001",
     )
+
     db_session.add(account)
     db_session.commit()
 
-    txn = TransactionORM(
+    transaction = TransactionORM(
         id=txn_id,
         account_id=account_id,
         amount=amount,
+        balance_after=balance_after,
         date=date,
         name=name,
         merchant_name=merchant_name,
-        category=category,
+        category_primary=category_primary,
+        category_detailed=category_detailed,
+        category_confidence_level=category_confidence_level,
         pending=pending,
         iso_currency_code=iso_code,
         unofficial_currency_code=unofficial_code,
     )
 
-    account.transactions.append(txn)
+    account.transactions.append(transaction)
     db_session.commit()
 
-    saved_txn = db_session.query(TransactionORM).filter_by(id=txn_id).first()
-    assert saved_txn is not None
-    assert saved_txn.id == txn_id
-    assert saved_txn.account_id == account_id
-    assert float(saved_txn.amount) == float(amount)
+    saved = (
+        db_session.query(TransactionORM)
+        .filter_by(id=txn_id)
+        .one()
+    )
 
-    assert normalize_datetime(saved_txn.date) == normalize_datetime(date)
-
-    assert saved_txn.name == name
-    assert saved_txn.merchant_name == merchant_name
-    assert saved_txn.category == category
-    assert saved_txn.pending == pending
-    assert saved_txn.iso_currency_code == iso_code
-    assert saved_txn.unofficial_currency_code == unofficial_code
+    assert saved.id == txn_id
+    assert saved.account_id == account_id
+    assert saved.amount == amount
+    assert saved.balance_after == balance_after
+    assert normalize_datetime(saved.date) == normalize_datetime(date)
+    assert saved.name == name
+    assert saved.merchant_name == merchant_name
+    assert saved.category_primary == category_primary
+    assert saved.category_detailed == category_detailed
+    assert saved.category_confidence_level == category_confidence_level
+    assert saved.pending == pending
+    assert saved.iso_currency_code == iso_code
+    assert saved.unofficial_currency_code == unofficial_code
 
 
 # -----------------------
-# Test default date is set automatically
+# Test default date behavior
 # -----------------------
 def test_transaction_orm_default_date(db_session):
+    """Date should default to current UTC time when not provided."""
     account = AccountORM(
         id="acc_010",
         name="Auto Date Account",
-        type="credit",
-        balance=500.0,
+        type=AccountType.CREDIT,
+        balance=Decimal("500.00"),
+        initial_balance=Decimal("500.00"),
         user_id="user_010",
     )
+
     db_session.add(account)
     db_session.commit()
 
-    txn = TransactionORM(
+    transaction = TransactionORM(
         id="txn_010",
         account_id="acc_010",
-        amount=75.0,
+        amount=Decimal("75.00"),
+        balance_after=Decimal("575.00"),
     )
-    account.transactions.append(txn)
+
+    account.transactions.append(transaction)
     db_session.commit()
 
-    saved_txn = db_session.query(TransactionORM).filter_by(id="txn_010").first()
-    assert saved_txn.date is not None
+    saved = (
+        db_session.query(TransactionORM)
+        .filter_by(id="txn_010")
+        .one()
+    )
 
-    saved_date = normalize_datetime(saved_txn.date)
-    assert (datetime.now(timezone.utc) - saved_date).total_seconds() < 5
+    saved_date = normalize_datetime(saved.date)
+    now = datetime.now(timezone.utc)
+
+    assert saved_date <= now
+    assert (now - saved_date).total_seconds() < 5

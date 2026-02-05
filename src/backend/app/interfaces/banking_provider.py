@@ -71,3 +71,21 @@ class BankingProvider(ABC):
         Returns:
             List of transactions.
         """
+
+    @abstractmethod
+    def get_transactions_sync(
+        self,
+        access_token: str,
+        cursor: str | None
+    ) -> str:
+        """
+        Retrieve transactions between two dates.
+
+        Args:
+            access_token: Provider access token.
+            start_date: ISO start date.
+            end_date: ISO end date.
+
+        Returns:
+            List of transactions.
+        """

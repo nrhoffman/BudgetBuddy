@@ -34,6 +34,8 @@ def orm_to_domain_account(orm: AccountORM) -> Account:
             type=orm.type,
             subtype=orm.subtype,
             balance=float(orm.balance),
+            initial_balance=Decimal(orm.initial_balance),
+            initial_import_completed_at=orm.initial_import_completed_at,
             transactions=[orm_to_domain_transaction(tx) for tx in orm.transactions],
         )
     except Exception:  # pylint: disable=broad-except
@@ -64,9 +66,12 @@ def orm_to_domain_transaction(orm: TransactionORM) -> Transaction:
             account_id=orm.account_id,
             amount=Decimal(orm.amount),
             date=orm.date,
+            balance_after=orm.balance_after,
             name=orm.name,
             merchant_name=orm.merchant_name,
-            category=orm.category or [],
+            category_primary=orm.category_primary,
+            category_detailed=orm.category_detailed,
+            category_confidence_level=orm.category_confidence_level,
             pending=orm.pending,
             iso_currency_code=orm.iso_currency_code,
             unofficial_currency_code=orm.unofficial_currency_code,

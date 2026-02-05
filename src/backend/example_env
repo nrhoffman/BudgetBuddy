@@ -2,6 +2,7 @@
 
 # Logger Level
 LOG_LEVEL=DEBUG
+LOG_TO_CONSOLE=true
 LOG_FILE=./log/budget_app.log
 
 # Database

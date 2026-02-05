@@ -68,22 +68,26 @@ export default function PlaidLinkButton({ onSuccess }: PlaidLinkButtonProps) {
 
   const { open } = usePlaidLink({
     token: linkToken || "",
-    onSuccess: async (public_token: string) => {
+    onSuccess: async (public_token: string, metadata) => {
       const res = await fetch("/api/bank/exchange-token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({ public_token }),
+        body: JSON.stringify({
+          public_token,
+          institution_id: metadata.institution?.institution_id,
+          institution_name: metadata.institution?.name,
+        }),
       });
 
       if (res.ok) {
-        alert("Bank account linked!");
+        alert("Bank linked!");
         if (onSuccess) await onSuccess();
       } else {
         const errorText = await res.text();
-        alert(`Failed to link bank account: ${errorText}`);
+        alert(`Failed to link bank: ${errorText}`);
       }
     },
   });
@@ -94,7 +98,7 @@ export default function PlaidLinkButton({ onSuccess }: PlaidLinkButtonProps) {
       onClick={() => open()}
       className="px-6 py-3 bg-green-500 text-white rounded-lg shadow hover:bg-green-600 transition"
     >
-      Connect Bank Account
+      Connect Bank
     </button>
   );
 }

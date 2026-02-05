@@ -3,19 +3,23 @@
  */
 export type Transaction = {
   /** Unique identifier for the transaction */
-  transaction_id: string;
+  id: string;
   /** ID of the account this transaction belongs to */
   account_id: string;
   /** Transaction amount */
   amount: number;
   /** Transaction date in ISO format */
   date: string;
+  /** Balance after transaction */
+  balance_after: number;
   /** Name of the transaction */
   name: string;
   /** Merchant name, if available */
   merchant_name: string;
-  /** Categories assigned to the transaction */
-  category: string[];
+  /** Personal finance category fields */
+  category_primary: string;
+  category_detailed: string;
+  category_confidence_level: string;
   /** Whether the transaction is pending */
   pending: boolean;
   /** ISO currency code (optional) */

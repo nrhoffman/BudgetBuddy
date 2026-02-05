@@ -1,23 +1,22 @@
 import pytest
-from datetime import datetime, timezone
 from decimal import Decimal
-
+from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
-from app.models.account import Account, AccountType
-from app.models.transaction import Transaction
+from app.models.account import Account
 from app.repositories.account_repository import AccountRepository
 
-# -----------------------
-# Fixture: in-memory DB session
-# -----------------------
+# -----------------------------
+# Fixtures
+# -----------------------------
+
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -25,134 +24,224 @@ def db_session():
     session.close()
 
 
-# -----------------------
-# Fixture: repository
-# -----------------------
 @pytest.fixture
 def repo(db_session):
     return AccountRepository(db_session)
 
 
-# -----------------------
-# Parametrized test: add and get accounts
-# -----------------------
-@pytest.mark.parametrize(
-    "account_id, name, type_, balance",
-    [
-        ("acc_001", "Test Account", AccountType.DEPOSITORY, 1000.0),
-        ("acc_002", "Savings Account", AccountType.DEPOSITORY, 5000.0),
-        ("acc_003", "Credit Card", AccountType.CREDIT, -250.0),
-    ]
-)
-def test_add_and_get_account(repo, account_id, name, type_, balance):
+# -----------------------------
+# Helpers
+# -----------------------------
+
+def create_account(
+    repo,
+    db_session,
+    *,
+    acc_id="acc",
+    user_id="user",
+    acc_type="depository",
+    balance=Decimal("100"),
+    import_date=datetime(2026, 1, 2),
+):
     account = Account(
-        id=account_id,
-        name=name,
-        type=type_,
+        id=acc_id,
+        name="Test Account",
+        type=acc_type,
         subtype=None,
         balance=balance,
-        transactions=[]
     )
-
-    repo.add_account(account, user_id="user_001")
-    fetched = repo.get(account_id, "user_001")
-
-    assert fetched.id == account.id
-    assert fetched.name == account.name
-    assert float(fetched.balance) == account.balance
-
-
-# -----------------------
-# Parametrized test: delete accounts
-# -----------------------
-@pytest.mark.parametrize(
-    "account_id, initial_name",
-    [
-        ("acc_del1", "DeleteMe1"),
-        ("acc_del2", "DeleteMe2"),
-    ]
-)
-def test_delete_account(repo, db_session, account_id, initial_name):
-    account = AccountORM(id=account_id, name=initial_name, type="depository", balance=500.0, user_id="user_001")
-    db_session.add(account)
+    repo.add_account(account, user_id)
+    orm = db_session.query(AccountORM).filter_by(id=acc_id).one()
+    orm.initial_import_completed_at = import_date
     db_session.commit()
+    return orm
 
-    repo.delete_account(account_id, "user_001")
+
+def add_tx(db_session, acc_id, amount, date, category, balance_after=None):
+    tx = TransactionORM(
+        id=f"tx_{acc_id}_{date.isoformat()}",
+        account_id=acc_id,
+        amount=Decimal(amount),
+        date=date,
+        category_primary=category,
+        balance_after=balance_after,
+    )
+    db_session.add(tx)
+    db_session.commit()
+    return tx
+
+
+# -----------------------------
+# CRUD Tests
+# -----------------------------
+
+def test_add_get_update_delete_account(repo):
+    acc = Account(id="a1", name="Checking", type="depository", subtype=None, balance=50)
+    
+    # Add
+    repo.add_account(acc, "u1")
+    fetched = repo.get("a1", "u1")
+    assert fetched.name == "Checking"
+    assert fetched.balance == 50
+
+    # Update
+    repo.update_account("a1", "u1", account_name="Updated", balance=75)
+    updated = repo.get("a1", "u1")
+    assert updated.name == "Updated"
+    assert updated.balance == 75
+
+    # Delete
+    repo.delete_account("a1", "u1")
     with pytest.raises(ValueError):
-        repo.get(account_id, "user_001")
+        repo.get("a1", "u1")
 
 
-# -----------------------
-# Parametrized test: add transactions
-# -----------------------
+# -----------------------------
+# signed_amount
+# -----------------------------
+
 @pytest.mark.parametrize(
-    "txn_id, account_id, amount, name, txn_date",
+    "account_type, category, expected",
     [
-        ("txn_001", "acc_txn1", Decimal("100.5"), "Groceries", datetime(2026, 1, 23, tzinfo=timezone.utc)),
-        ("txn_002", "acc_txn2", Decimal("50.0"), "Coffee", datetime(2026, 1, 24, tzinfo=timezone.utc)),
+        ("depository", "INCOME", 100),
+        ("depository", "EXPENSE", -100),
+        ("credit", "INCOME", -100),
+        ("credit", "EXPENSE", 100),
+        ("loan", "INCOME", -100),
+        ("loan", "EXPENSE", 100),
     ]
 )
-def test_add_transaction(repo, db_session, txn_id, account_id, amount, name, txn_date):
-    account = AccountORM(id=account_id, name="TxnAccount", type="depository", balance=800.0, user_id="user_001")
-    db_session.add(account)
-    db_session.commit()
-
-    txn = Transaction(
-        transaction_id=txn_id,
-        account_id=account_id,
-        amount=amount,
-        date=txn_date,
-        name=name
-    )
-    repo.add_transaction(account_id, txn, "user_001")
-
-    fetched_account = repo.get(account_id, "user_001")
-    assert len(fetched_account.transactions) == 1
-    assert fetched_account.transactions[0].transaction_id == txn_id
+def test_signed_amount(repo, account_type, category, expected):
+    tx = TransactionORM(amount=Decimal("100"), category_primary=category)
+    assert repo.signed_amount(tx, account_type) == Decimal(expected)
 
 
-# -----------------------
-# Parametrized test: update accounts
-# -----------------------
+# -----------------------------
+# recalculate_balances_backward
+# -----------------------------
+
 @pytest.mark.parametrize(
-    "account_id, old_name, new_name, old_balance, new_balance",
+    "account_type, initial_balance, transactions, expected_balances",
     [
-        ("acc_upd1", "OldName1", "NewName1", 300.0, 500.0),
-        ("acc_upd2", "OldName2", "NewName2", 150.0, 250.0),
-    ]
+        (
+            "depository",
+            Decimal("100"),
+            [("INCOME", "2026-01-01", 50), ("EXPENSE", "2026-01-03", 20)],
+            [Decimal("100"), None],  # post-import tx untouched
+        ),
+        (
+            "credit",
+            Decimal("500"),
+            [("INCOME", "2026-01-01", 100), ("EXPENSE", "2026-01-03", 50)],
+            [Decimal("500"), None],
+        ),
+        (
+            "depository",
+            Decimal("200"),
+            [("INCOME", "2026-01-03", 25)],
+            [Decimal("200")],  # single tx becomes anchor
+        ),
+    ],
 )
-def test_update_account(repo, db_session, account_id, old_name, new_name, old_balance, new_balance):
-    account = AccountORM(id=account_id, name=old_name, type="depository", balance=old_balance, user_id="user_001")
-    db_session.add(account)
-    db_session.commit()
+def test_recalculate_balances_backward(
+    repo, db_session, account_type, initial_balance,
+    transactions, expected_balances
+):
+    acc_id = "acc1"
+    user_id = "user1"
+    import_date = datetime(2026, 1, 2)
 
-    updated_account = Account(
-        id=account_id, name=new_name, type=AccountType.DEPOSITORY, subtype=None, balance=new_balance, transactions=[]
+    create_account(
+        repo,
+        db_session,
+        acc_id=acc_id,
+        user_id=user_id,
+        acc_type=account_type,
+        balance=initial_balance,
+        import_date=import_date,
     )
-    repo.update(account_id, updated_account, "user_001")
 
-    fetched = repo.get(account_id, "user_001")
-    assert fetched.name == new_name
-    assert float(fetched.balance) == new_balance
+    for category, date_str, amount in transactions:
+        add_tx(
+            db_session,
+            acc_id,
+            amount,
+            datetime.fromisoformat(date_str),
+            category,
+        )
+
+    repo.recalculate_balances_backward(user_id, acc_id)
+
+    stored = (
+        db_session.query(TransactionORM)
+        .filter(TransactionORM.account_id == acc_id)
+        .order_by(TransactionORM.date)
+        .all()
+    )
+
+    assert [tx.balance_after for tx in stored] == expected_balances
 
 
-# -----------------------
-# Test: get all accounts with transactions (can parametrize if desired)
-# -----------------------
+# -----------------------------
+# recalculate_balances_from
+# -----------------------------
+
+def test_recalculate_balances_from(repo, db_session):
+    acc_id = "acc2"
+    user_id = "user2"
+    import_date = datetime(2026, 1, 2)
+
+    create_account(
+        repo,
+        db_session,
+        acc_id=acc_id,
+        user_id=user_id,
+        acc_type="depository",
+        balance=Decimal("100"),
+        import_date=import_date,
+    )
+
+    add_tx(db_session, acc_id, 50, datetime(2026, 1, 1), "INCOME")
+    add_tx(db_session, acc_id, 20, datetime(2026, 1, 3), "EXPENSE")
+
+    boundary_dates = {
+        acc_id: {
+            "latest_before_import": import_date,
+            "earliest_after_import": import_date,
+        }
+    }
+
+    repo.recalculate_balances_from(user_id, boundary_dates)
+
+    stored = (
+        db_session.query(TransactionORM)
+        .filter(TransactionORM.account_id == acc_id)
+        .order_by(TransactionORM.date)
+        .all()
+    )
+
+    # backward anchor, then forward apply
+    assert [tx.balance_after for tx in stored] == [
+        Decimal("100"),
+        Decimal("80"),
+    ]
+
+    acc = db_session.query(AccountORM).filter_by(id=acc_id).one()
+    assert acc.balance == Decimal("100")
+
+
+# -----------------------------
+# get_all_accounts_with_transactions
+# -----------------------------
+
 def test_get_all_accounts_with_transactions(repo, db_session):
-    accounts_data = [
-        ("acc_all1", "A1", 100.0, "txn101", 50.0, datetime(2026, 1, 1)),
-        ("acc_all2", "A2", 200.0, "txn102", 150.0, datetime(2026, 1, 2)),
-    ]
+    create_account(repo, db_session, acc_id="a1", user_id="u1")
+    add_tx(db_session, "a1", 50, datetime(2026, 1, 1), "INCOME")
+    add_tx(db_session, "a1", 20, datetime(2026, 1, 2), "EXPENSE")
 
-    for acc_id, acc_name, balance, txn_id, txn_amount, txn_date in accounts_data:
-        acc = AccountORM(id=acc_id, name=acc_name, type="depository", balance=balance, user_id="user_002")
-        txn = TransactionORM(id=txn_id, account_id=acc_id, amount=txn_amount, date=txn_date)
-        acc.transactions.append(txn)
-        db_session.add(acc)
-
-    db_session.commit()
-
-    accounts_fetched = repo.get_all_accounts_with_transactions("user_002")
-    assert len(accounts_fetched) == 2
-    assert all(len(acc.transactions) == 1 for acc in accounts_fetched)
+    accounts = repo.get_all_accounts_with_transactions("u1")
+    assert len(accounts) == 1
+    account = accounts[0]
+    assert account.id == "a1"
+    assert len(account.transactions) == 2
+    assert [tx.amount for tx in account.transactions] == [Decimal("50"), Decimal("20")]
