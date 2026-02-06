@@ -1,36 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-
-import AccountsSidebar from "../components/dashboard/AccountsSidebar";
-import Banner from "../components/banner";
-import DashboardSidebar from "../components/dashboard/DashboardSidebar";
-import TransactionsPanel from "../components/dashboard/TransactionsPanel";
-
+import { useEffect } from "react";
 import { useAccounts } from "../hooks/useAccounts";
 import { useAuthCheck } from "../hooks/useAuthCheck";
+import { useInstitutions } from "../hooks/useInstitutions";
 
 const PlaidLinkButton = dynamic(
   () => import("../components/dashboard/PlaidLinkButton"),
   { ssr: false }
 );
 
-export default function DashboardPage() {
+export default function DashboardHomePage() {
   const authChecked = useAuthCheck();
-  const [activeMenu, setActiveMenu] = useState("home");
+  const { fetchAccounts, loading: accountsLoading } = useAccounts();
   const {
-    accounts,
-    loading: accountsLoading,
-    fetchAccounts,
-    deleteAccount,
-    editAccount,
-    deleting,
-    editingAccount,
-  } = useAccounts();
-
-  const [selectedAccount, setSelectedAccount] = useState<typeof accounts[number] | null>(null);
-  const [linkingAccounts, setLinkingAccounts] = useState(false);
+    institutions,
+    loading: institutionsLoading,
+    getAccountsForInstitution,
+  } = useInstitutions();
 
   useEffect(() => {
     if (authChecked) {
@@ -38,157 +26,63 @@ export default function DashboardPage() {
     }
   }, [authChecked, fetchAccounts]);
 
-  if (!authChecked || accountsLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading dashboard...
-      </div>
-    );
+  if (!authChecked || accountsLoading || institutionsLoading) {
+    return <div>Loading dashboard...</div>;
   }
 
-  const handleAccountsUpdated = async () => {
-    setLinkingAccounts(true);
-    await fetchAccounts();
-    setLinkingAccounts(false);
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Banner */}
-      <Banner />
+    <div className="flex flex-col items-center mt-8 w-full max-w-4xl">
+      <h1 className="text-5xl font-bold mb-6">Dashboard</h1>
+      <p className="text-lg text-gray-600 mb-6">
+        Manage your accounts, transactions, and financial goals.
+      </p>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <DashboardSidebar activeMenu={activeMenu} onSelectMenu={setActiveMenu} />
+      <PlaidLinkButton onSuccess={fetchAccounts} />
 
-        {/* Main Content */}
-        <main className="flex-1 p-8">
-          {/* Home page */}
-          {activeMenu === "home" && (
-            <div className="flex flex-col items-center justify-center mt-8">
-              <h1 className="text-5xl font-bold text-gray-800 mb-6">Dashboard</h1>
-              <p className="text-lg text-gray-600 max-w-2xl text-center mb-6">
-                Manage your accounts, transactions, and financial goals.
-              </p>
+      <h2 className="text-2xl font-semibold mt-8 mb-4 w-full flex justify-start">
+        Linked Institutions
+      </h2>
 
-              <PlaidLinkButton onSuccess={handleAccountsUpdated} />
-              {linkingAccounts && (
-                <div className="mt-4 text-center text-blue-600 font-medium">
-                  Linking accounts...
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Banking page */}
-          {activeMenu === "banking" && (
-            <div className="mt-8 w-full max-w-6xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 className="text-5xl font-bold text-gray-800 mb-2">Banking</h1>
-                <p className="text-lg text-gray-600">
-                  Keep on top of your banking
-                </p>
-              </div>
-
-              <div className="grid grid-cols-12 gap-6">
-                <AccountsSidebar
-                  accounts={accounts.filter(
-                    (account) => account.type === "depository"
-                  )}
-                  selectedAccount={selectedAccount}
-                  onSelectAccount={setSelectedAccount}
-                  onDeleteAccount={deleteAccount}
-                  onEditAccount={editAccount}
-                  deleting={deleting}
-                  editing={editingAccount}
-                />
-                <TransactionsPanel account={selectedAccount} />
-              </div>
-            </div>
-          )}
-
-          {/* Credit page */}
-          {activeMenu === "credit" && (
-            <div className="mt-8 w-full max-w-6xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 className="text-5xl font-bold text-gray-800 mb-2">Credit</h1>
-                <p className="text-lg text-gray-600">
-                  Keep on top of your credit cards
-                </p>
-              </div>
-
-              <div className="grid grid-cols-12 gap-6">
-                <AccountsSidebar
-                  accounts={accounts.filter(
-                    (account) => account.type === "credit"
-                  )}
-                  selectedAccount={selectedAccount}
-                  onSelectAccount={setSelectedAccount}
-                  onDeleteAccount={deleteAccount}
-                  onEditAccount={editAccount}
-                  deleting={deleting}
-                  editing={editingAccount}
-                />
-                <TransactionsPanel account={selectedAccount} />
-              </div>
-            </div>
-          )}
-
-          {/* Loans page */}
-          {activeMenu === "loans" && (
-            <div className="mt-8 w-full max-w-6xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 className="text-5xl font-bold text-gray-800 mb-2">Loans</h1>
-                <p className="text-lg text-gray-600">
-                  Keep on top of your loans
-                </p>
-              </div>
-
-              <div className="grid grid-cols-12 gap-6">
-                <AccountsSidebar
-                  accounts={accounts.filter(
-                    (account) => account.type === "loan"
-                  )}
-                  selectedAccount={selectedAccount}
-                  onSelectAccount={setSelectedAccount}
-                  onDeleteAccount={deleteAccount}
-                  onEditAccount={editAccount}
-                  deleting={deleting}
-                  editing={editingAccount}
-                />
-                <TransactionsPanel account={selectedAccount} />
-              </div>
-            </div>
-          )}
-
-          {/* Investing page */}
-          {activeMenu === "investing" && (
-            <div className="mt-8 w-full max-w-6xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 className="text-5xl font-bold text-gray-800 mb-2">Investing</h1>
-                <p className="text-lg text-gray-600">
-                  Keep on top of your investments
-                </p>
-              </div>
-
-              <div className="grid grid-cols-12 gap-6">
-                  <AccountsSidebar
-                    accounts={accounts.filter(
-                      (account) => account.type === "investment"
-                    )}
-                    selectedAccount={selectedAccount}
-                    onSelectAccount={setSelectedAccount}
-                    onDeleteAccount={deleteAccount}
-                    onEditAccount={editAccount}
-                    deleting={deleting}
-                    editing={editingAccount}
-                  />
-                <TransactionsPanel account={selectedAccount} />
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
+      {institutions.length > 0 ? (
+        <div className="overflow-x-auto w-full">
+          <table className="min-w-full bg-white border border-gray-200 shadow rounded">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="py-3 px-6 text-left font-medium text-gray-700">Institution Name</th>
+                <th className="py-3 px-6 text-right font-medium text-gray-700">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {institutions.map((inst) => (
+                <tr key={inst.institution_id} className="border-t">
+                  <td className="py-3 px-6 text-gray-800">{inst.institution_name}</td>
+                  <td className="py-3 px-6 text-right">
+                    <button
+                      onClick={async () => {
+                        const res = await getAccountsForInstitution(inst.institution_id);
+                        if (res) {
+                          alert(`Accounts synced for ${inst.institution_name}!`);
+                        } else {
+                          alert(`Failed to sync accounts for ${inst.institution_name}.`);
+                        }
+                      }}
+                      className="px-4 py-2 text-sm font-medium rounded
+                                bg-blue-600 text-white
+                                hover:bg-blue-700"
+                    >
+                      Sync Accounts
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-gray-500">No institutions linked yet.</p>
+      )}
     </div>
   );
 }

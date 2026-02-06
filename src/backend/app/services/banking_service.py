@@ -8,7 +8,7 @@ service. Includes structured logging and HTTPException handling.
 """
 
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Optional, Any
 from fastapi import HTTPException, status
 
 from app.logger import logger
@@ -53,7 +53,7 @@ class BankingService:
     # ---------------------------
     # Bank link token
     # ---------------------------
-    def create_bank_link_token(self, user_id: str) -> Dict[str, str]:
+    def create_bank_link_token(self, user_id: str) -> dict[str, str]:
         """
         Create a bank link token for a user.
 
@@ -86,15 +86,16 @@ class BankingService:
     # ---------------------------
     # Bank account linking
     # ---------------------------
-    def add_bank_accounts(
+    def add_bank_institution(
         self,
         user_id: str,
         public_token: str,
         institution_id: Optional[str] = None,
         institution_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
-        Exchange a public token and sync bank accounts and transactions.
+        Exchange a public token for an institution and sync bank accounts
+        and transactions.
 
         Args:
             user_id: Identifier of the authenticated user.
@@ -148,7 +149,6 @@ class BankingService:
 
             all_transactions = self.get_transactions_within_dates(
                 access_token=exchange_result.access_token,
-
             )
 
             for account in accounts:
@@ -178,10 +178,97 @@ class BankingService:
                 detail="Failed to link bank accounts",
             ) from exc
 
+    def add_bank_accounts(
+        self,
+        user_id: str,
+        institution_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Sync bank accounts and transactions for a user and institution.
+
+        This method:
+        - Retrieves the existing Plaid access token for the user/institution
+        - Fetches accounts from the banking provider
+        - Filters out accounts that already exist in the database
+        - Creates new accounts
+        - Fetches recent transactions and applies them to newly created accounts
+
+        Args:
+            user_id: The authenticated user's ID.
+            institution_id: Optional Plaid institution ID to scope the sync.
+
+        Returns:
+            A dictionary containing:
+                - status: Sync status string
+                - accounts_added: Number of newly created accounts
+
+        Raises:
+            RuntimeError: If token lookup, account creation, or transaction sync fails.
+        """
+        try:
+            existing_token = self.bank_repo.get_by_user(user_id, institution_id)
+            if not existing_token:
+                raise RuntimeError("No bank token found for user")
+
+            new_accounts = (
+                self.banking_provider.get_accounts(existing_token.access_token) or []
+            )
+
+            existing_accounts = (
+                self.account_repo.get_all_accounts_with_transactions(user_id=user_id)
+            )
+
+            existing_account_ids = {
+                acct.id for acct in existing_accounts
+            }
+
+            accounts_to_create = [
+                acct for acct in new_accounts
+                if acct.id not in existing_account_ids
+            ]
+
+            if not accounts_to_create:
+                return {"status": "linked", "accounts_added": 0}
+
+            all_transactions = self.get_transactions_within_dates(
+                access_token=existing_token.access_token
+            )
+
+            created_count = 0
+
+            for account in accounts_to_create:
+                self.account_service.create_account(account, user_id)
+
+                account_transactions = [
+                    tx for tx in all_transactions
+                    if tx.account_id == account.id
+                ]
+
+                self.account_service.apply_transaction_changes(
+                    user_id=user_id,
+                    added=account_transactions,
+                    modified=[],
+                    removed=[],
+                )
+
+                created_count += 1
+
+            return {
+                "status": "linked",
+                "accounts_added": created_count,
+            }
+        except Exception as exc:
+            logger.exception(
+                "Failed to sync bank accounts for user %s: %s",
+                user_id,
+                exc,
+            )
+            raise RuntimeError("Failed to sync bank accounts") from exc
+
     # ---------------------------
     # Plaid webhook
     # ---------------------------
-    def plaid_webhook(self, payload: Dict[str, Any]) -> Dict[str, str]:
+    def plaid_webhook(self, payload: dict[str, Any]) -> dict[str, str]:
         """
         Handle Plaid webhook events.
 
@@ -218,7 +305,7 @@ class BankingService:
     # ---------------------------
     # Utilities
     # ---------------------------
-    def get_transactions_within_dates(self, access_token: str) -> List[Transaction]:
+    def get_transactions_within_dates(self, access_token: str) -> list[Transaction]:
         """
         Fetch transactions for the past 90 days for a given access token.
 
@@ -227,7 +314,7 @@ class BankingService:
                                 for the user's account.
 
         Returns:
-            List[Transaction]: A list of Transaction objects within the date range.
+            list[Transaction]: A list of Transaction objects within the date range.
 
         Raises:
             RuntimeError: If the banking provider fails to fetch transactions.

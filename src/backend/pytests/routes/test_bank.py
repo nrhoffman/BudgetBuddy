@@ -23,7 +23,7 @@ class DummyBankingService:
             raise Exception("Token failure")
         return f"token_for_{user_id}"
 
-    def add_bank_accounts(self, user_id, public_token, institution_id, institution_name):
+    def add_bank_institution(self, user_id, public_token, institution_id, institution_name):
         self.called["exchange_token"] = {
             "user_id": user_id,
             "public_token": public_token,
@@ -32,6 +32,12 @@ class DummyBankingService:
         }
         if public_token == "fail":
             raise Exception("Exchange failure")
+
+    def add_bank_accounts(self, user_id, institution_id):
+        self.called["get_accounts"] = {"user_id": user_id, "institution_id": institution_id}
+        if institution_id == "fail":
+            raise Exception("Accounts failure")
+        return {"accounts": [{"id": "acc1"}, {"id": "acc2"}]}
 
     def plaid_webhook(self, payload):
         self.called["webhook"] = payload
@@ -72,12 +78,11 @@ def client(dummy_service, dummy_user):
 ])
 def test_create_link_token(client, dummy_user, dummy_service, user_id, expected_token, should_fail):
     dummy_user.id = user_id
+    response = client.post("/api/bank/create-link-token")
     if should_fail:
-        response = client.post("/api/bank/create-link-token")
         assert response.status_code == 500
         assert response.json()["detail"] == "Failed to create link token"
     else:
-        response = client.post("/api/bank/create-link-token")
         assert response.status_code == 200
         assert response.json() == {"link_token": expected_token}
         assert dummy_service.called["link_token"] == user_id
@@ -97,12 +102,11 @@ def test_exchange_token(client, dummy_service, dummy_user,
         "institution_id": institution_id,
         "institution_name": institution_name,
     }
+    response = client.post("/api/bank/exchange-token", json=payload)
     if should_fail:
-        response = client.post("/api/bank/exchange-token", json=payload)
         assert response.status_code == 500
         assert response.json()["detail"] == "Failed to exchange token"
     else:
-        response = client.post("/api/bank/exchange-token", json=payload)
         assert response.status_code == 200
         assert response.json() == {"message": "Bank accounts synced"}
         called = dummy_service.called["exchange_token"]
@@ -110,3 +114,43 @@ def test_exchange_token(client, dummy_service, dummy_user,
         assert called["public_token"] == public_token
         assert called["institution_id"] == institution_id
         assert called["institution_name"] == institution_name
+
+
+# ----------------------------
+# Tests for /get-accounts
+# ----------------------------
+@pytest.mark.parametrize("institution_id,expected_count,should_fail", [
+    ("inst1", 2, False),
+    ("fail", 0, True),
+])
+def test_get_accounts(client, dummy_service, dummy_user, institution_id, expected_count, should_fail):
+    response = client.post(f"/api/bank/get-accounts?institution_id={institution_id}")
+    if should_fail:
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to retrieve accounts"
+    else:
+        assert response.status_code == 200
+        data = response.json()
+        assert "accounts" in data
+        assert len(data["accounts"]) == expected_count
+        called = dummy_service.called["get_accounts"]
+        assert called["user_id"] == dummy_user.id
+        assert called["institution_id"] == institution_id
+
+
+# ----------------------------
+# Tests for /webhooks/plaid
+# ----------------------------
+@pytest.mark.parametrize("payload,should_fail", [
+    ({"webhook_type": "TRANSACTIONS"}, False),
+    ({"fail": True}, True),
+])
+def test_plaid_webhook(client, dummy_service, payload, should_fail):
+    response = client.post("/api/bank/webhooks/plaid", json=payload)
+    if should_fail:
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to process webhook"
+    else:
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+        assert dummy_service.called["webhook"] == payload

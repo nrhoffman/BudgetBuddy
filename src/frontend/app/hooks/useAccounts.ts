@@ -10,12 +10,14 @@ export function useAccounts() {
 
   const fetchAccounts = useCallback(async () => {
     const token = localStorage.getItem("token");
+
     if (!token) return;
 
     try {
       const res = await fetch("/api/accounts/get-accounts", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (res.ok) {
         const data = await res.json();
         setAccounts(data.accounts);

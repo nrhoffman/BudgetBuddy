@@ -1,16 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Banner() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
-  // Lazy initial state reads from localStorage safely
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window === "undefined") return false; // SSR safety
-    return !!localStorage.getItem("token");
-  });
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    setIsLoggedIn(Boolean(token));
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");

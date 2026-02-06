@@ -6,9 +6,9 @@ tokens, and handling Plaid webhooks. Includes type hints, logging, and
 dependency injection for BankingService and user authentication.
 """
 
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.logger import logger
 from app.dependencies import get_banking_service, get_current_user
@@ -18,11 +18,11 @@ from app.services.banking_service import BankingService
 router = APIRouter(prefix="/api/bank", tags=["bank"])
 
 
-@router.post("/create-link-token", response_model=Dict[str, str])
+@router.post("/create-link-token", response_model=dict[str, str])
 def create_link_token(
     banking_service: BankingService = Depends(get_banking_service),
     current_user=Depends(get_current_user),
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Create a bank link token for the authenticated user.
 
@@ -52,12 +52,12 @@ def create_link_token(
         ) from exc
 
 
-@router.post("/exchange-token", response_model=Dict[str, str])
+@router.post("/exchange-token", response_model=dict[str, str])
 def exchange_token(
     req: ExchangeToken,
     banking_service: BankingService = Depends(get_banking_service),
     current_user=Depends(get_current_user),
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Exchange a public token and sync bank accounts and transactions.
 
@@ -73,7 +73,7 @@ def exchange_token(
         HTTPException: If token exchange or syncing fails.
     """
     try:
-        banking_service.add_bank_accounts(
+        banking_service.add_bank_institution(
             user_id=current_user.id,
             public_token=req.public_token,
             institution_id=req.institution_id,
@@ -96,9 +96,48 @@ def exchange_token(
         ) from exc
 
 
+@router.post("/get-accounts", response_model=dict[str, Any])
+def get_accounts(
+    institution_id: str = Query(...),
+    banking_service: BankingService = Depends(get_banking_service),
+    current_user=Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Get all bank accounts for the authenticated user.
+
+    Args:
+        banking_service: Injected BankingService instance.
+        current_user: Authenticated user from JWT.
+
+    Returns:
+        Dictionary with account information.
+    """
+    try:
+        accounts = banking_service.add_bank_accounts(
+            user_id=current_user.id,
+            institution_id=institution_id
+        )
+        logger.debug(
+            "Retrieved accounts for user %s (institution_id=%s)",
+            current_user.id,
+            institution_id,
+        )
+        return accounts
+    except Exception as exc:
+        logger.exception(
+            "Failed to retrieve accounts for user %s: %s",
+            current_user.id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve accounts",
+        ) from exc
+
+
 @router.post("/webhooks/plaid")
 async def plaid_webhook(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     banking_service: BankingService = Depends(get_banking_service),
 ) -> Any:
     """

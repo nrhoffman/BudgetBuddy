@@ -7,7 +7,7 @@ the account repository and enforces application-level validation and error handl
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional
 from fastapi import HTTPException, status
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,6 +16,7 @@ from app.logger import logger
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.repositories.account_repository import AccountRepository
+from app.repositories.bank_repository import BankRepository
 from app.repositories.transaction_repository import TransactionRepository
 
 
@@ -27,6 +28,7 @@ class AccountService:
     def __init__(
         self,
         account_repo: AccountRepository,
+        bank_repo: BankRepository,
         txn_repo: TransactionRepository,
     ):
         """
@@ -37,12 +39,13 @@ class AccountService:
             txn_repo: Repository for transaction persistence.
         """
         self.account_repo = account_repo
+        self.bank_repo = bank_repo
         self.txn_repo = txn_repo
 
     # ---------------------------
     # Account operations
     # ---------------------------
-    def create_account(self, account: Account, user_id: str) -> Dict[str, str]:
+    def create_account(self, account: Account, user_id: str) -> dict[str, str]:
         """
         Create a new financial account for a user.
 
@@ -132,7 +135,7 @@ class AccountService:
         user_id: str,
         account_name: Optional[str] = None,
         balance: Optional[float] = None,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Update one or more fields of a user's account.
 
@@ -183,7 +186,7 @@ class AccountService:
                 detail="Failed to update account",
             ) from exc
 
-    def remove_account(self, account_id: str, user_id: str) -> Dict[str, str]:
+    def remove_account(self, account_id: str, user_id: str) -> dict[str, str]:
         """
         Delete a user's account.
 
@@ -236,9 +239,9 @@ class AccountService:
         self,
         *,
         user_id: str,
-        added: List[Transaction],
-        modified: List[Transaction],
-        removed: List[str],
+        added: list[Transaction],
+        modified: list[Transaction],
+        removed: list[str],
     ) -> None:
         """
         Apply changes to user transactions: remove, add, and modify.
@@ -256,28 +259,28 @@ class AccountService:
         boundaries = self.find_earliest_dates(user_id, added, modified, removed)
         self._rebalance_accounts(user_id, boundaries)
 
-    def _remove_transactions(self, user_id: str, txn_ids: List[str]) -> None:
+    def _remove_transactions(self, user_id: str, txn_ids: list[str]) -> None:
         if txn_ids:
             self.txn_repo.delete_by_ids(user_id, txn_ids)
 
-    def _upsert_transactions(self, user_id: str, txns: List[Transaction]) -> None:
+    def _upsert_transactions(self, user_id: str, txns: list[Transaction]) -> None:
         if txns:
             self.txn_repo.bulk_upsert(user_id, txns)
 
     def _rebalance_accounts(
             self,
             user_id: str,
-            from_dates: Dict[str, Dict[str, datetime]]
+            from_dates: dict[str, dict[str, datetime]]
     ) -> None:
         self.account_repo.recalculate_balances_from(user_id, from_dates)
 
     def find_earliest_dates(
         self,
         user_id: str,
-        added: List[Transaction],
-        modified: List[Transaction],
-        removed: List[str],
-    ) -> Dict[str, Dict[str, Optional[datetime]]]:
+        added: list[Transaction],
+        modified: list[Transaction],
+        removed: list[str],
+    ) -> dict[str, dict[str, Optional[datetime]]]:
         """
         Determine earliest and latest transaction dates relative to
         account import.
@@ -286,7 +289,7 @@ class AccountService:
             Dictionary keyed by account_id with 'latest_before_import'
             and 'earliest_after_import'.
         """
-        boundaries: Dict[str, Dict[str, Optional[datetime]]] = {}
+        boundaries: dict[str, dict[str, Optional[datetime]]] = {}
         txn_ids = {t.transaction_id for t in modified} | set(removed)
         old_txns = {
             tx.transaction_id: tx for tx in self.txn_repo.get_by_ids(list(txn_ids))
@@ -357,9 +360,43 @@ class AccountService:
         return boundaries
 
     # ---------------------------
+    # Institution operations
+    # ---------------------------
+    def get_institutions(self, user_id: str) -> list[dict]:
+        """
+        Retrieve a list of financial institutions.
+
+        Args:
+            account_service: Instance of AccountService.
+            current_user: The current authenticated user.
+
+        Returns:
+            List of dictionaries representing institutions.
+
+        Raises:
+            HTTPException: If retrieval fails.
+        """
+        try:
+            institutions = self.bank_repo.get_institutions(user_id)
+            logger.info("Fetched institutions for user %s", user_id)
+            return institutions
+
+        except SQLAlchemyError as exc:
+            logger.error(
+                "Failed to fetch institutions for user %s: %s",
+                user_id,
+                exc,
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch institutions",
+            ) from exc
+
+    # ---------------------------
     # User financial snapshot
     # ---------------------------
-    def get_user_financial_snapshot(self, user_id: str) -> List[Account]:
+    def get_user_financial_snapshot(self, user_id: str) -> list[Account]:
         """
         Retrieve all accounts and associated transactions for a user.
 

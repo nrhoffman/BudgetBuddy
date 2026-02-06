@@ -8,7 +8,7 @@ recalculation, and maintaining transactional integrity.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import desc
 from sqlalchemy.exc import SQLAlchemyError
@@ -372,7 +372,7 @@ class AccountRepository:
     def get_all_accounts_with_transactions(
         self,
         user_id: str,
-    ) -> List[Account]:
+    ) -> list[Account]:
         """
         Retrieve all accounts and transactions for a user.
 
