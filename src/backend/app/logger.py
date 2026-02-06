@@ -38,7 +38,7 @@ if not logger.hasHandlers():
         logger.addHandler(console_handler)
 
     # Optional file handler
-    log_file_path = os.getenv("LOG_FILE", "log/budget_app.log")
+    log_file_path = os.getenv("LOG_FILE", "logs/budget_app.log")
     if log_file_path:
         log_dir = os.path.dirname(log_file_path)
         if log_dir and not os.path.exists(log_dir):

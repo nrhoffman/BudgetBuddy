@@ -242,3 +242,36 @@ class BankRepository:
         except SQLAlchemyError as exc:
             logger.exception("Failed to fetch cursor for item_id %s", item_id)
             raise RuntimeError(f"Failed to fetch cursor for item_id {item_id}") from exc
+
+    # ---------------------------
+    # Institution methods
+    # --------------------------
+    def get_institutions(self, user_id: str) -> list[dict]:
+        """
+        Retrieve a list of financial institutions for a user.
+
+        Args:
+            user_id (str): User identifier.
+
+        Returns:
+            list[dict]: List of institutions with id and name.
+        """
+        institutions = self.session.execute(
+            select(
+                BankItemToken.institution_id,
+                BankItemToken.institution_name,
+            )
+            .where(BankItemToken.user_id == user_id)
+            .group_by(
+                BankItemToken.institution_id,
+                BankItemToken.institution_name
+            )
+        ).all()
+
+        return [
+            {
+                "institution_id": inst.institution_id,
+                "institution_name": inst.institution_name,
+            }
+            for inst in institutions
+        ]

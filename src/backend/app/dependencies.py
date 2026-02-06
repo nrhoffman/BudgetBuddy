@@ -61,6 +61,7 @@ def get_account_service(db: Session = Depends(get_db)) -> AccountService:
     """
     return AccountService(
         account_repo=AccountRepository(db),
+        bank_repo=BankRepository(db),
         txn_repo=TransactionRepository(db)
     )
 
@@ -91,6 +92,7 @@ def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
     """
     account_service = AccountService(
         account_repo=AccountRepository(db),
+        bank_repo=BankRepository(db),
         txn_repo=TransactionRepository(db)
     )
     account_repo = AccountRepository(db)

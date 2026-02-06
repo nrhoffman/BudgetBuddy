@@ -1,7 +1,6 @@
 # Project Backlog
 
 ## To Do
-- [ ] Currently modified syncs rewrites Manually modified categories and confidence
 - [ ] Replace the shit popup windows
 - [ ] Make income green and other's red
 - [ ] Verify if link token needs to be created upon each page refresh
@@ -12,12 +11,16 @@
 - [ ] Check if transactions can do time and not just date - make it so time is used
 
 ## In Progress
-- [ ] Need to be able to add accounts for institutions already added
-- [ ] After webhook addition, set category changes
+- [ ] Refactor - Keep exceptions/logging to services/routes/tasks
+- [ ] Have errors go to frontend and display
+- [ ] Have a raw data table
+- [ ] Currently modified syncs rewrites Manually modified categories and confidence
 - [ ] Verify balances work correctly credit/loan vs others
 - [ ] Optionally set the description as a pattern in a transaction_rule table
 
 ## Done
+- [x] Need to be able to add accounts for institutions already added
+- [x] Split up pages into their own files on dashboard
 - [x] Add webhook functionality, queuing, and syncing
 - [x] Confidence level changes to "Manual" if the user changes a category
 - [x] Currently, rebalancing takes 1 date - it needs to take two since there are two types of calculations
@@ -36,6 +39,7 @@
 - [x] Changed Plaid category from legacy to modern
 
 ## Ideas
+- Something to look at - Do unselected bank accounts get synced through plaid?
 - Add APR/interest
 - Show income a month and year - break down by sources
 - Show spending trends graph by category

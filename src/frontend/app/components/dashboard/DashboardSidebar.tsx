@@ -1,40 +1,34 @@
-"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
-import { useState } from "react";
-import clsx from "clsx";
+export default function DashboardSidebar() {
+  const pathname = usePathname();
 
-const menuItems = [
-  { key: "home", label: "Home" },
-  { key: "banking", label: "Banking" },
-  { key: "credit", label: "Credit" },
-  { key: "loans", label: "Loans" },
-  { key: "investing", label: "Investing" },
-  { key: "budget", label: "Budget" },
-  { key: "calculators", label: "Calculators" },
-];
+  const linkClass = (path: string) =>
+    `block px-6 py-3 rounded-md text-lg font-medium transition-colors duration-200 ${
+      pathname === path ? "bg-blue-100 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"
+    }`;
 
-interface DashboardSidebarProps {
-  activeMenu: string;
-  onSelectMenu: (menu: string) => void;
-}
-
-export default function DashboardSidebar({ activeMenu, onSelectMenu }: DashboardSidebarProps) {
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 min-h-screen p-4 flex flex-col">
-      <h2 className="text-xl font-bold mb-6">Budget Buddy</h2>
-      <nav className="flex flex-col gap-2">
-        {menuItems.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => onSelectMenu(item.key)}
-            className={clsx(
-              "text-left px-4 py-2 rounded-md hover:bg-gray-100",
-              activeMenu === item.key && "bg-blue-100 font-semibold"
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
+    <aside className="w-64 h-screen p-6 bg-white shadow-lg flex flex-col">
+      <nav className="flex-1">
+        <ul className="space-y-3">
+          <li>
+            <Link href="/dashboard" className={linkClass("/dashboard")}>Home</Link>
+          </li>
+          <li>
+            <Link href="/dashboard/banking" className={linkClass("/dashboard/banking")}>Banking</Link>
+          </li>
+          <li>
+            <Link href="/dashboard/credit" className={linkClass("/dashboard/credit")}>Credit</Link>
+          </li>
+          <li>
+            <Link href="/dashboard/loans" className={linkClass("/dashboard/loans")}>Loans</Link>
+          </li>
+          <li>
+            <Link href="/dashboard/investing" className={linkClass("/dashboard/investing")}>Investing</Link>
+          </li>
+        </ul>
       </nav>
     </aside>
   );

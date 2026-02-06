@@ -7,7 +7,7 @@ Includes account types, subtypes, and conversion utilities for account data.
 import enum
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional, Any
+from typing import Optional, Any
 
 from pydantic import BaseModel, Field
 from app.logger import logger
@@ -61,7 +61,7 @@ class Account(BaseModel):
     balance: Decimal
     initial_balance: Optional[Decimal] = None
     initial_import_completed_at: Optional[datetime] = None
-    transactions: List[Transaction] = Field(default_factory=list)
+    transactions: list[Transaction] = Field(default_factory=list)
 
 
 def parse_account_type(value: Any) -> AccountType:

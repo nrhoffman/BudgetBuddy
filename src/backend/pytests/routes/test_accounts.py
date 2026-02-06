@@ -137,3 +137,33 @@ def test_update_transaction_exception(mock_account_service):
     response = client.post("/api/accounts/acc1/transactions/tx1", json=payload.dict())
     assert response.status_code == 500
     assert response.json()["detail"] == "Failed to update transaction"
+
+# --------------------------
+# get_institutions tests
+# --------------------------
+@pytest.mark.parametrize(
+    "institutions, expected_length",
+    [
+        ([], 0),
+        ([{"id": "inst1"}, {"id": "inst2"}], 2),
+    ],
+)
+def test_get_institutions_success(mock_account_service, mock_current_user, institutions, expected_length):
+    # Mock the service call
+    mock_account_service.get_institutions.return_value = institutions
+
+    response = client.get("/api/accounts/get-institutions")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == expected_length
+    mock_account_service.get_institutions.assert_called_once_with(user_id=mock_current_user.id)
+
+
+def test_get_institutions_exception(mock_account_service, mock_current_user):
+    # Simulate exception in the service layer
+    mock_account_service.get_institutions.side_effect = Exception("fail")
+
+    response = client.get("/api/accounts/get-institutions")
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to fetch institutions"

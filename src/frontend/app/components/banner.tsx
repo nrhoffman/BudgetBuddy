@@ -6,10 +6,11 @@ import { useState } from "react";
 export default function Banner() {
   const router = useRouter();
 
-  // Lazy initial state reads from localStorage safely
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window === "undefined") return false; // SSR safety
-    return !!localStorage.getItem("token");
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return Boolean(localStorage.getItem("token"));
+    }
+    return false;
   });
 
   const handleLogout = () => {

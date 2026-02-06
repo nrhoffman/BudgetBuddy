@@ -41,6 +41,7 @@ def sync_transactions(self, item_id: str) -> None:
         bank_repo = BankRepository(db)
         account_service = AccountService(
             AccountRepository(db),
+            bank_repo,
             TransactionRepository(db)
         )
         plaid = PlaidSandbox()

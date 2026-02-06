@@ -34,6 +34,7 @@ export function useAuthCheck(): boolean {
     const checkAuth = async () => {
       const token = localStorage.getItem("token");
       if (!token) {
+        setAuthChecked(false);
         router.replace("/");
         return;
       }
@@ -49,6 +50,7 @@ export function useAuthCheck(): boolean {
 
         if (!res.ok) {
           localStorage.removeItem("token");
+          setAuthChecked(false);
           router.replace("/");
         } else {
           setAuthChecked(true);
@@ -56,6 +58,7 @@ export function useAuthCheck(): boolean {
       } catch (err) {
         console.error("Auth check failed", err);
         localStorage.removeItem("token");
+        setAuthChecked(false);
         router.replace("/");
       }
     };

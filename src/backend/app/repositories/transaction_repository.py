@@ -5,8 +5,6 @@ Provides methods to fetch, bulk upsert, and delete transactions, with
 exception handling and logging.
 """
 
-from typing import List
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
@@ -38,15 +36,15 @@ class TransactionRepository:
     # ---------------------------
     # Fetch methods
     # ---------------------------
-    def get_by_ids(self, transaction_ids: List[str]) -> List[Transaction]:
+    def get_by_ids(self, transaction_ids: list[str]) -> list[Transaction]:
         """
         Fetch transactions by a list of IDs.
 
         Args:
-            transaction_ids (List[str]): List of transaction IDs.
+            transaction_ids (list[str]): List of transaction IDs.
 
         Returns:
-            List[Transaction]: Mapped domain transaction objects.
+            list[Transaction]: Mapped domain transaction objects.
 
         Raises:
             RuntimeError: If the database query fails.
@@ -70,13 +68,13 @@ class TransactionRepository:
     # ---------------------------
     # Upsert methods
     # ---------------------------
-    def bulk_upsert(self, user_id: str, transactions: List[Transaction]) -> int:
+    def bulk_upsert(self, user_id: str, transactions: list[Transaction]) -> int:
         """
         Bulk insert or update transactions for a user.
 
         Args:
             user_id (str): ID of the user.
-            transactions (List[Transaction]): List of domain transactions.
+            transactions (list[Transaction]): list of domain transactions.
 
         Returns:
             int: Number of rows inserted or updated.
@@ -144,13 +142,13 @@ class TransactionRepository:
     # ---------------------------
     # Delete methods
     # ---------------------------
-    def delete_by_ids(self, user_id: str, transaction_ids: List[str]) -> int:
+    def delete_by_ids(self, user_id: str, transaction_ids: list[str]) -> int:
         """
         Delete multiple transactions belonging to a user.
 
         Args:
             user_id (str): ID of the user.
-            transaction_ids (List[str]): List of transaction IDs to delete.
+            transaction_ids (list[str]): List of transaction IDs to delete.
 
         Returns:
             int: Number of deleted rows.

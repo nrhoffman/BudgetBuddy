@@ -9,7 +9,7 @@ error handling for both API-specific and unexpected exceptions.
 """
 
 import os
-from typing import List, Optional
+from typing import Optional
 
 from plaid import ApiClient, ApiException, Configuration
 from plaid.api import plaid_api
@@ -127,7 +127,7 @@ class PlaidSandbox(BankingProvider):
             logger.exception("Unexpected error exchanging public token: %s", exc)
             raise
 
-    def get_accounts(self, access_token: str) -> List[Account]:
+    def get_accounts(self, access_token: str) -> list[Account]:
         """
         Fetch accounts associated with a given access token.
 
@@ -135,7 +135,7 @@ class PlaidSandbox(BankingProvider):
             access_token (str): Plaid access token for the user.
 
         Returns:
-            List[Account]: List of Account domain models.
+            list[Account]: List of Account domain models.
 
         Raises:
             ApiException: If the Plaid API call fails.
@@ -172,7 +172,7 @@ class PlaidSandbox(BankingProvider):
 
     def get_transactions(
         self, access_token: str, start_date: str, end_date: str
-    ) -> List[Transaction]:
+    ) -> list[Transaction]:
         """
         Fetch transactions for an account within a specified date range.
 
@@ -182,7 +182,7 @@ class PlaidSandbox(BankingProvider):
             end_date (str): End date (YYYY-MM-DD) for transactions.
 
         Returns:
-            List[Transaction]: List of mapped Transaction domain models.
+            list[Transaction]: List of mapped Transaction domain models.
 
         Raises:
             ApiException: If the Plaid API call fails.
@@ -231,9 +231,9 @@ class PlaidSandbox(BankingProvider):
             Exception: For any unexpected errors.
         """
         has_more = True
-        added: List[Transaction] = []
-        modified: List[Transaction] = []
-        removed: List[str] = []
+        added: list[Transaction] = []
+        modified: list[Transaction] = []
+        removed: list[str] = []
 
         try:
             while has_more:
@@ -266,15 +266,15 @@ class PlaidSandbox(BankingProvider):
             logger.exception("Unexpected error during transactions sync: %s", exc)
             raise
 
-    def sort_transactions(self, txns: List[Transaction]) -> List[Transaction]:
+    def sort_transactions(self, txns: list[Transaction]) -> list[Transaction]:
         """
         Sort transactions deterministically by date and transaction ID.
 
         Args:
-            txns (List[Transaction]): List of Transaction objects.
+            txns (list[Transaction]): List of Transaction objects.
 
         Returns:
-            List[Transaction]: Sorted list of transactions.
+            list[Transaction]: Sorted list of transactions.
 
         Raises:
             Exception: If sorting fails.

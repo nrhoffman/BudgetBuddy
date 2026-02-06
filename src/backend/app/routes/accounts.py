@@ -17,6 +17,9 @@ from app.logger import logger
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
 
+# -----------------------
+# Account Routes
+# -----------------------
 @router.get("/get-accounts", response_model=Dict[str, Any])
 def get_accounts(
     account_service: AccountService = Depends(get_account_service),
@@ -118,6 +121,9 @@ def remove_account(
         raise HTTPException(status_code=500, detail="Failed to remove account") from exc
 
 
+# -----------------------
+# Transaction Routes
+# -----------------------
 @router.post("/{account_id}/transactions/{transaction_id}")
 def update_transaction(
     account_id: str,
@@ -193,4 +199,42 @@ def update_transaction(
         raise HTTPException(
             status_code=500,
             detail="Failed to update transaction"
+        ) from exc
+
+
+# -----------------------
+# Institution Routes
+# -----------------------
+@router.get("/get-institutions", response_model=list[dict])
+def get_institutions(
+    account_service: AccountService = Depends(get_account_service),
+    current_user=Depends(get_current_user),
+) -> list[dict]:
+    """
+    Retrieve a list of financial institutions.
+
+    Args:
+        account_service: Injected AccountService instance.
+        current_user: The authenticated user.
+
+    Returns:
+        List of financial institutions.
+    """
+    try:
+        institutions = account_service.get_institutions(user_id=current_user.id)
+        logger.debug(
+            "Retrieved %d institutions for user %s",
+            len(institutions),
+            current_user.id
+        )
+        return institutions
+    except Exception as exc:
+        logger.exception(
+            "Failed to fetch institutions for user %s: %s",
+            current_user.id,
+            exc
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch institutions"
         ) from exc
