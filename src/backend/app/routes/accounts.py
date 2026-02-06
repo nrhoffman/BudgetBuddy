@@ -16,6 +16,7 @@ from app.logger import logger
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
+
 # -----------------------
 # Account Routes
 # -----------------------
@@ -119,6 +120,7 @@ def remove_account(
         )
         raise HTTPException(status_code=500, detail="Failed to remove account") from exc
 
+
 # -----------------------
 # Transaction Routes
 # -----------------------
@@ -198,6 +200,7 @@ def update_transaction(
             status_code=500,
             detail="Failed to update transaction"
         ) from exc
+
 
 # -----------------------
 # Institution Routes
