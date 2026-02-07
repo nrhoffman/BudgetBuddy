@@ -1,28 +1,33 @@
 """
 Account service layer.
 
-This module contains business logic for managing user financial accounts
-and their associated transactions. It coordinates persistence through
-the account repository and enforces application-level validation and error handling.
+Contains business logic for managing user financial accounts and their
+associated transactions. Coordinates persistence through repositories
+and ensures consistent balance recalculation using centralized
+exception handling and structured logging.
 """
 
 from datetime import datetime
 from typing import Optional
-from fastapi import HTTPException, status
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.logger import logger
 from app.models.account import Account
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, UpdateTransaction
 from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
 from app.repositories.transaction_repository import TransactionRepository
+from app.exceptions import DatabaseError, NotFoundError, ValidationError
 
 
 class AccountService:
     """
     Service responsible for managing user accounts and transactions.
+
+    Provides account CRUD operations, transaction updates, balance
+    recalculation, and institution lookups while enforcing ownership
+    and consistency rules.
     """
 
     def __init__(
@@ -31,13 +36,6 @@ class AccountService:
         bank_repo: BankRepository,
         txn_repo: TransactionRepository,
     ):
-        """
-        Initialize the account service.
-
-        Args:
-            account_repo: Repository for account and transaction persistence.
-            txn_repo: Repository for transaction persistence.
-        """
         self.account_repo = account_repo
         self.bank_repo = bank_repo
         self.txn_repo = txn_repo
@@ -50,14 +48,14 @@ class AccountService:
         Create a new financial account for a user.
 
         Args:
-            account: Account model instance to persist.
-            user_id: Identifier of the owning user.
+            account (Account): Account model to persist.
+            user_id (str): Identifier of the owning user.
 
         Returns:
-            Dict with confirmation message and created account ID.
+            dict[str, str]: Confirmation payload containing account ID.
 
         Raises:
-            HTTPException: If account creation fails.
+            DatabaseError: If account persistence fails.
         """
         try:
             self.account_repo.add_account(account, user_id)
@@ -67,7 +65,6 @@ class AccountService:
                 user_id
             )
             return {"message": "Account created", "account_id": account.id}
-
         except SQLAlchemyError as exc:
             logger.error(
                 "Failed to create account for user %s: %s",
@@ -75,25 +72,24 @@ class AccountService:
                 exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create account",
-            ) from exc
+            raise DatabaseError("Failed to create account") from exc
 
     def get_account(self, account_id: str, user_id: str) -> Account:
         """
-        Retrieve a specific account for a user.
+        Retrieve a single account owned by a user.
 
         Args:
-            account_id: Identifier of the account.
-            user_id: Identifier of the owning user.
+            account_id (str): Identifier of the account.
+            user_id (str): Identifier of the owning user.
 
         Returns:
-            Account instance.
+            Account: Retrieved account model.
 
         Raises:
-            HTTPException: 404 if account not found, 500 if retrieval fails.
+            NotFoundError: If the account does not exist.
+            DatabaseError: If retrieval fails.
         """
+
         try:
             account = self.account_repo.get(account_id, user_id)
             if not account:
@@ -102,19 +98,14 @@ class AccountService:
                     account_id,
                     user_id
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Account not found"
-                )
-
+                raise NotFoundError("Account not found")
             logger.info(
                 "Fetched account: account_id=%s, user_id=%s",
                 account_id,
                 user_id
             )
             return account
-
-        except HTTPException:
+        except NotFoundError:
             raise
         except Exception as exc:
             logger.error(
@@ -124,10 +115,7 @@ class AccountService:
                 exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch account",
-            ) from exc
+            raise DatabaseError("Failed to fetch account") from exc
 
     def update_account(
         self,
@@ -135,27 +123,24 @@ class AccountService:
         user_id: str,
         account_name: Optional[str] = None,
         balance: Optional[float] = None,
-    ) -> dict[str, str]:
+    ) -> None:
         """
-        Update one or more fields of a user's account.
+        Update mutable fields of an existing account.
 
         Args:
-            account_id: Account ID to update.
-            user_id: Owner of the account.
-            account_name: Optional new account name.
-            balance: Optional new account balance.
-
-        Returns:
-            Dict with confirmation message.
+            account_id (str): Identifier of the account.
+            user_id (str): Identifier of the owning user.
+            account_name (Optional[str]): New account name.
+            balance (Optional[float]): Updated balance.
 
         Raises:
-            HTTPException: 400 if no fields, 500 if update fails.
+            ValidationError: If no fields are provided for update.
+            NotFoundError: If the account does not exist.
+            DatabaseError: If the update fails.
         """
+
         if account_name is None and balance is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields provided to update",
-            )
+            raise ValidationError("No fields provided to update")
 
         try:
             self.account_repo.update_account(
@@ -169,37 +154,31 @@ class AccountService:
                 account_id,
                 user_id
             )
-            return {"message": "Account updated successfully"}
-
-        except HTTPException:
-            raise
+        except ValueError as exc:
+            logger.warning(str(exc))
+            raise NotFoundError(str(exc)) from exc
         except Exception as exc:
             logger.error(
                 "Error updating account %s for user %s: %s",
                 account_id,
-                user_id,
-                exc,
+                user_id, exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update account",
-            ) from exc
+            raise DatabaseError("Failed to update account") from exc
 
-    def remove_account(self, account_id: str, user_id: str) -> dict[str, str]:
+    def remove_account(self, account_id: str, user_id: str) -> None:
         """
-        Delete a user's account.
+        Delete an account owned by a user.
 
         Args:
-            account_id: ID of the account to delete.
-            user_id: Owner of the account.
-
-        Returns:
-            Dict with confirmation message.
+            account_id (str): Identifier of the account.
+            user_id (str): Identifier of the owning user.
 
         Raises:
-            HTTPException: 404 if account not found, 500 if deletion fails.
+            NotFoundError: If the account does not exist.
+            DatabaseError: If deletion fails.
         """
+
         try:
             self.account_repo.delete_account(account_id, user_id)
             logger.info(
@@ -207,34 +186,92 @@ class AccountService:
                 account_id,
                 user_id
             )
-            return {"message": "Account deleted successfully"}
-
         except ValueError as exc:
             logger.warning(
                 "Attempted to delete non-existing account %s: %s",
                 account_id,
                 exc
             )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(exc)
-            ) from exc
+            raise NotFoundError(str(exc)) from exc
         except Exception as exc:
             logger.error(
                 "Failed to delete account %s for user %s: %s",
                 account_id,
-                user_id,
-                exc,
+                user_id, exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete account",
-            ) from exc
+            raise DatabaseError("Failed to delete account") from exc
 
     # ---------------------------
     # Transaction operations
     # ---------------------------
+    def update_transaction(
+        self,
+        user_id: str,
+        account_id: str,
+        transaction_id: str,
+        payload: UpdateTransaction,
+    ) -> None:
+        """
+        Update a single transaction and rebalance affected accounts.
+
+        Args:
+            user_id (str): Identifier of the owning user.
+            account_id (str): Identifier of the associated account.
+            transaction_id (str): Identifier of the transaction.
+            payload (UpdateTransaction): Partial transaction update payload.
+
+        Raises:
+            NotFoundError: If the transaction does not exist or does not
+                belong to the account.
+            DatabaseError: If the update fails.
+        """
+
+        existing_tx_list = self.txn_repo.get_by_ids([transaction_id])
+        if not existing_tx_list:
+            logger.warning(
+                "Transaction %s not found for user %s",
+                transaction_id,
+                user_id
+            )
+            raise NotFoundError("Transaction not found")
+
+        try:
+            existing_tx = existing_tx_list[0]
+            if existing_tx.account_id != account_id:
+                logger.warning(
+                    "Transaction %s does not belong to account %s for user %s",
+                    transaction_id,
+                    account_id,
+                    user_id
+                )
+                raise NotFoundError("Transaction not found")
+
+            updated_tx = existing_tx.model_copy(
+                update=payload.model_dump(exclude_unset=True)
+            )
+            self.apply_transaction_changes(
+                user_id=user_id,
+                added=[],
+                modified=[updated_tx],
+                removed=[]
+            )
+            logger.info(
+                "Updated transaction %s for account %s, user %s",
+                transaction_id,
+                account_id,
+                user_id
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to update transaction %s for account %s, user %s: %s",
+                transaction_id,
+                account_id,
+                user_id,
+                exc
+            )
+            raise DatabaseError("Failed to update transaction") from exc
+
     def apply_transaction_changes(
         self,
         *,
@@ -244,34 +281,57 @@ class AccountService:
         removed: list[str],
     ) -> None:
         """
-        Apply changes to user transactions: remove, add, and modify.
+        Apply transaction changes and rebalance affected accounts.
 
         Args:
-            user_id: Owner of the transactions.
-            added: Transactions to add.
-            modified: Transactions to update.
-            removed: Transaction IDs to remove.
+            user_id (str): Identifier of the owning user.
+            added (list[Transaction]): Newly added transactions.
+            modified (list[Transaction]): Updated transactions.
+            removed (list[str]): IDs of removed transactions.
         """
-        self._remove_transactions(user_id, removed)
-        self._upsert_transactions(user_id, added)
-        self._upsert_transactions(user_id, modified)
 
+        self._remove_transactions(user_id, removed)
+        self._upsert_transactions(added)
+        self._upsert_transactions(modified)
         boundaries = self.find_earliest_dates(user_id, added, modified, removed)
         self._rebalance_accounts(user_id, boundaries)
 
     def _remove_transactions(self, user_id: str, txn_ids: list[str]) -> None:
+        """
+        Remove transactions by ID.
+
+        Args:
+            user_id (str): Identifier of the owning user.
+            txn_ids (list[str]): Transaction IDs to delete.
+        """
+
         if txn_ids:
             self.txn_repo.delete_by_ids(user_id, txn_ids)
 
-    def _upsert_transactions(self, user_id: str, txns: list[Transaction]) -> None:
+    def _upsert_transactions(self, txns: list[Transaction]) -> None:
+        """
+        Insert or update transactions in bulk.
+
+        Args:
+            txns (list[Transaction]): Transactions to upsert.
+        """
+
         if txns:
-            self.txn_repo.bulk_upsert(user_id, txns)
+            self.txn_repo.bulk_upsert(txns)
 
     def _rebalance_accounts(
             self,
             user_id: str,
             from_dates: dict[str, dict[str, datetime]]
     ) -> None:
+        """
+        Recalculate account balances from affected transaction dates.
+
+        Args:
+            user_id (str): Identifier of the owning user.
+            from_dates (dict): Boundary dates per account.
+        """
+
         self.account_repo.recalculate_balances_from(user_id, from_dates)
 
     def find_earliest_dates(
@@ -282,13 +342,18 @@ class AccountService:
         removed: list[str],
     ) -> dict[str, dict[str, Optional[datetime]]]:
         """
-        Determine earliest and latest transaction dates relative to
-        account import.
+        Determine transaction boundary dates for balance recalculation.
+
+        Args:
+            user_id (str): Identifier of the owning user.
+            added (list[Transaction]): Newly added transactions.
+            modified (list[Transaction]): Modified transactions.
+            removed (list[str]): Removed transaction IDs.
 
         Returns:
-            Dictionary keyed by account_id with 'latest_before_import'
-            and 'earliest_after_import'.
+            dict[str, dict[str, Optional[datetime]]]: Per-account date boundaries.
         """
+
         boundaries: dict[str, dict[str, Optional[datetime]]] = {}
         txn_ids = {t.transaction_id for t in modified} | set(removed)
         old_txns = {
@@ -300,6 +365,19 @@ class AccountService:
                 tx_date: datetime,
                 import_date: Optional[datetime]
         ):
+            """
+            Update transaction date boundaries for balance recalculation.
+
+            Determines whether a transaction occurred before or after the
+            account's initial import completion date and updates the
+            appropriate boundary for the given account.
+
+            Args:
+                account_id (str): Identifier of the affected account.
+                tx_date (datetime): Transaction date to evaluate.
+                import_date (Optional[datetime]): Initial import completion date
+                    for the account.
+            """
             if account_id not in boundaries:
                 boundaries[account_id] = {
                     "latest_before_import": None,
@@ -307,7 +385,6 @@ class AccountService:
                 }
             if import_date is None:
                 import_date = datetime.min
-
             if tx_date.date() <= import_date.date():
                 current = boundaries[account_id]["latest_before_import"]
                 if current is None or tx_date > current:
@@ -317,35 +394,20 @@ class AccountService:
                 if current is None or tx_date < current:
                     boundaries[account_id]["earliest_after_import"] = tx_date
 
-        for t in added:
+        for t in added + modified:
             account = self.account_repo.get(t.account_id, user_id)
-            update_boundary(
-                t.account_id,
-                t.date,
-                account.initial_import_completed_at
-            )
-
-        for t in modified:
             old_tx = old_txns.get(t.transaction_id)
             if old_tx:
-                account = self.account_repo.get(t.account_id, user_id)
                 update_boundary(
                     t.account_id,
                     old_tx.date,
                     account.initial_import_completed_at
                 )
-                update_boundary(
-                    t.account_id,
-                    t.date,
-                    account.initial_import_completed_at
-                )
-            else:
-                account = self.account_repo.get(t.account_id, user_id)
-                update_boundary(
-                    t.account_id,
-                    t.date,
-                    account.initial_import_completed_at
-                )
+            update_boundary(
+                t.account_id,
+                t.date,
+                account.initial_import_completed_at
+            )
 
         for txn_id in removed:
             old_tx = old_txns.get(txn_id)
@@ -364,23 +426,22 @@ class AccountService:
     # ---------------------------
     def get_institutions(self, user_id: str) -> list[dict]:
         """
-        Retrieve a list of financial institutions.
+        Retrieve all linked banking institutions for a user.
 
         Args:
-            account_service: Instance of AccountService.
-            current_user: The current authenticated user.
+            user_id (str): Identifier of the user.
 
         Returns:
-            List of dictionaries representing institutions.
+            list[dict]: List of institution metadata associated with the user.
 
         Raises:
-            HTTPException: If retrieval fails.
+            DatabaseError: If fetching institutions fails.
         """
+
         try:
             institutions = self.bank_repo.get_institutions(user_id)
             logger.info("Fetched institutions for user %s", user_id)
             return institutions
-
         except SQLAlchemyError as exc:
             logger.error(
                 "Failed to fetch institutions for user %s: %s",
@@ -388,32 +449,31 @@ class AccountService:
                 exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch institutions",
-            ) from exc
+            raise DatabaseError("Failed to fetch institutions") from exc
 
     # ---------------------------
     # User financial snapshot
     # ---------------------------
     def get_user_financial_snapshot(self, user_id: str) -> list[Account]:
         """
-        Retrieve all accounts and associated transactions for a user.
+        Retrieve a complete financial snapshot for a user.
+
+        Includes all accounts and their associated transactions.
 
         Args:
-            user_id: Identifier of the user.
+            user_id (str): Identifier of the user.
 
         Returns:
-            List of Account instances with transactions.
+            list[Account]: User accounts populated with transactions.
 
         Raises:
-            HTTPException: If retrieval fails.
+            DatabaseError: If fetching the financial snapshot fails.
         """
+
         try:
             accounts = self.account_repo.get_all_accounts_with_transactions(user_id)
             logger.info("Fetched financial snapshot for user %s", user_id)
             return accounts
-
         except SQLAlchemyError as exc:
             logger.error(
                 "Failed to fetch financial snapshot for user %s: %s",
@@ -421,7 +481,4 @@ class AccountService:
                 exc,
                 exc_info=True
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch financial snapshot",
-            ) from exc
+            raise DatabaseError("Failed to fetch financial snapshot") from exc

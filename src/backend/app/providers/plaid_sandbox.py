@@ -4,14 +4,13 @@ Plaid sandbox integration implementing the BankingProvider interface.
 This module provides a PlaidSandbox class which implements the BankingProvider
 interface using Plaid's sandbox environment. It supports creating link tokens,
 exchanging public tokens, fetching account balances, retrieving transactions,
-and performing incremental transaction syncs. All methods include logging and
-error handling for both API-specific and unexpected exceptions.
+and performing incremental transaction syncs.
 """
 
 import os
 from typing import Optional
 
-from plaid import ApiClient, ApiException, Configuration
+from plaid import ApiClient, Configuration
 from plaid.api import plaid_api
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
@@ -27,7 +26,6 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from app.models.account import Account, parse_account_type, parse_account_subtype
 from app.models.transaction import Transaction
 from app.interfaces.banking_provider import BankingProvider
-from app.logger import logger
 
 
 class PlaidSandbox(BankingProvider):
@@ -64,41 +62,21 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             str: A Plaid link token that can be used in the client app.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
         """
-        try:
-            request = LinkTokenCreateRequest(
-                user=LinkTokenCreateRequestUser(client_user_id=user_id),
-                client_name="Budget Buddy",
-                products=[
-                    Products("transactions"),
-                    Products("auth"),
-                    Products("liabilities"),
-                    Products("investments"),
-                ],
-                country_codes=[CountryCode("US")],
-                language="en",
-            )
-            response = self.client.link_token_create(request)
-            return response.link_token
-        except ApiException as exc:
-            logger.error(
-                "Plaid link token creation failed for user %s: %s",
-                user_id,
-                exc,
-                exc_info=True,
-            )
-            raise
-        except Exception as exc:
-            logger.exception(
-                "Unexpected error creating link token for user %s: %s",
-                user_id,
-                exc
-            )
-            raise
+        request = LinkTokenCreateRequest(
+            user=LinkTokenCreateRequestUser(client_user_id=user_id),
+            client_name="Budget Buddy",
+            products=[
+                Products("transactions"),
+                Products("auth"),
+                Products("liabilities"),
+                Products("investments"),
+            ],
+            country_codes=[CountryCode("US")],
+            language="en",
+        )
+        response = self.client.link_token_create(request)
+        return response.link_token
 
     def exchange_public_token(self, public_token: str) -> str:
         """
@@ -109,23 +87,10 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             str: Access token for the user account.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
         """
-        try:
-            request = ItemPublicTokenExchangeRequest(public_token=public_token)
-            response = self.client.item_public_token_exchange(request)
-            return response
-        except ApiException as exc:
-            logger.error(
-                "Plaid public token exchange failed: %s", exc, exc_info=True
-            )
-            raise
-        except Exception as exc:
-            logger.exception("Unexpected error exchanging public token: %s", exc)
-            raise
+        request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        response = self.client.item_public_token_exchange(request)
+        return response
 
     def get_accounts(self, access_token: str) -> list[Account]:
         """
@@ -136,39 +101,21 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             list[Account]: List of Account domain models.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
         """
-        try:
-            request = AccountsBalanceGetRequest(access_token=access_token)
-            res = self.client.accounts_balance_get(request)
-            accounts = []
-            for acc in res.accounts:
-                try:
-                    accounts.append(
-                        Account(
-                            id=acc.account_id,
-                            name=acc.name,
-                            type=parse_account_type(acc.type),
-                            subtype=parse_account_subtype(acc.subtype),
-                            balance=acc.balances.current,
-                        )
-                    )
-                except (AttributeError, TypeError) as exc:
-                    logger.exception(
-                        "Failed to map Plaid account %s: %s",
-                        getattr(acc, "account_id", None),
-                        exc,
-                    )
-            return accounts
-        except ApiException as exc:
-            logger.error("Failed to fetch Plaid accounts: %s", exc, exc_info=True)
-            raise
-        except Exception as exc:
-            logger.exception("Unexpected error fetching Plaid accounts: %s", exc)
-            raise
+        request = AccountsBalanceGetRequest(access_token=access_token)
+        res = self.client.accounts_balance_get(request)
+        accounts = []
+        for acc in res.accounts:
+            accounts.append(
+                Account(
+                    id=acc.account_id,
+                    name=acc.name,
+                    type=parse_account_type(acc.type),
+                    subtype=parse_account_subtype(acc.subtype),
+                    balance=acc.balances.current,
+                )
+            )
+        return accounts
 
     def get_transactions(
         self, access_token: str, start_date: str, end_date: str
@@ -183,32 +130,15 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             list[Transaction]: List of mapped Transaction domain models.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
         """
-        try:
-            request = TransactionsGetRequest(
-                access_token=access_token,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            res = self.client.transactions_get(request)
-            transactions = [self.map_plaid_transaction(txn) for txn in res.transactions]
-            return self.sort_transactions(transactions)
-        except ApiException as exc:
-            logger.error(
-                "Failed to fetch Plaid transactions for dates %s to %s: %s",
-                start_date,
-                end_date,
-                exc,
-                exc_info=True,
-            )
-            raise
-        except Exception as exc:
-            logger.exception("Unexpected error fetching Plaid transactions: %s", exc)
-            raise
+        request = TransactionsGetRequest(
+            access_token=access_token,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        res = self.client.transactions_get(request)
+        transactions = [self.map_plaid_transaction(txn) for txn in res.transactions]
+        return self.sort_transactions(transactions)
 
     def get_transactions_sync(
         self,
@@ -225,46 +155,35 @@ class PlaidSandbox(BankingProvider):
         Returns:
             dict: Dictionary with sorted added, modified, removed transactions
                   and the next_cursor.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
         """
         has_more = True
         added: list[Transaction] = []
         modified: list[Transaction] = []
         removed: list[str] = []
 
-        try:
-            while has_more:
-                request = TransactionsSyncRequest(
-                    access_token=access_token, cursor=cursor
-                ) if cursor else TransactionsSyncRequest(access_token=access_token)
+        while has_more:
+            request = TransactionsSyncRequest(
+                access_token=access_token, cursor=cursor
+            ) if cursor else TransactionsSyncRequest(access_token=access_token)
 
-                res = self.client.transactions_sync(request)
+            res = self.client.transactions_sync(request)
 
-                added.extend(map(self.map_plaid_transaction, res.added))
-                modified.extend(map(self.map_plaid_transaction, res.modified))
-                removed.extend(
-                    txn["transaction_id"] if isinstance(txn, dict) else txn
-                    for txn in res.removed
-                )
+            added.extend(map(self.map_plaid_transaction, res.added))
+            modified.extend(map(self.map_plaid_transaction, res.modified))
+            removed.extend(
+                txn["transaction_id"] if isinstance(txn, dict) else txn
+                for txn in res.removed
+            )
 
-                cursor = res.next_cursor
-                has_more = res.has_more
+            cursor = res.next_cursor
+            has_more = res.has_more
 
-            return {
-                "added": self.sort_transactions(added),
-                "modified": self.sort_transactions(modified),
-                "removed": removed,
-                "next_cursor": cursor,
-            }
-        except ApiException as exc:
-            logger.error("Plaid transactions sync failed: %s", exc, exc_info=True)
-            raise
-        except Exception as exc:
-            logger.exception("Unexpected error during transactions sync: %s", exc)
-            raise
+        return {
+            "added": self.sort_transactions(added),
+            "modified": self.sort_transactions(modified),
+            "removed": removed,
+            "next_cursor": cursor,
+        }
 
     def sort_transactions(self, txns: list[Transaction]) -> list[Transaction]:
         """
@@ -275,15 +194,8 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             list[Transaction]: Sorted list of transactions.
-
-        Raises:
-            Exception: If sorting fails.
         """
-        try:
-            return sorted(txns, key=lambda t: (t.date, t.transaction_id))
-        except Exception as exc:
-            logger.exception("Failed to sort transactions: %s", exc)
-            raise
+        return sorted(txns, key=lambda t: (t.date, t.transaction_id))
 
     def map_plaid_transaction(self, txn) -> Transaction:
         """
@@ -294,34 +206,23 @@ class PlaidSandbox(BankingProvider):
 
         Returns:
             Transaction: Mapped Transaction domain model.
-
-        Raises:
-            Exception: If mapping fails.
         """
-        try:
-            pfc = getattr(txn, "personal_finance_category", None)
-            return Transaction(
-                transaction_id=txn.transaction_id,
-                account_id=txn.account_id,
-                name=txn.name,
-                merchant_name=getattr(txn, "merchant_name", None),
-                amount=txn.amount,
-                date=txn.date,
-                category_primary=getattr(pfc, "primary", None) if pfc else None,
-                category_detailed=getattr(pfc, "detailed", None) if pfc else None,
-                category_confidence_level=getattr(
-                    pfc,
-                    "confidence_level",
-                    None
-                ) if pfc else None,
-                pending=getattr(txn, "pending", None),
-                iso_currency_code=getattr(txn, "iso_currency_code", None),
-                unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
-            )
-        except Exception as exc:
-            logger.exception(
-                "Failed to map Plaid transaction %s: %s",
-                getattr(txn, "transaction_id", None),
-                exc
-            )
-            raise
+        pfc = getattr(txn, "personal_finance_category", None)
+        return Transaction(
+            transaction_id=txn.transaction_id,
+            account_id=txn.account_id,
+            name=txn.name,
+            merchant_name=getattr(txn, "merchant_name", None),
+            amount=txn.amount,
+            date=txn.date,
+            category_primary=getattr(pfc, "primary", None) if pfc else None,
+            category_detailed=getattr(pfc, "detailed", None) if pfc else None,
+            category_confidence_level=getattr(
+                pfc,
+                "confidence_level",
+                None
+            ) if pfc else None,
+            pending=getattr(txn, "pending", None),
+            iso_currency_code=getattr(txn, "iso_currency_code", None),
+            unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
+        )

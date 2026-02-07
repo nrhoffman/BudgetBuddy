@@ -9,16 +9,16 @@
 - [ ] Auth currently goes inactive when active (jwt token as well)
 - [ ] Verify backend processes are multi-user
 - [ ] Check if transactions can do time and not just date - make it so time is used
-
-## In Progress
-- [ ] Refactor - Keep exceptions/logging to services/routes/tasks
-- [ ] Have errors go to frontend and display
 - [ ] Have a raw data table
 - [ ] Currently modified syncs rewrites Manually modified categories and confidence
 - [ ] Verify balances work correctly credit/loan vs others
 - [ ] Optionally set the description as a pattern in a transaction_rule table
 
+## In Progress
+- [ ] Have errors go to frontend and display
+
 ## Done
+- [x] Refactor - Keep exceptions/logging to services/routes/tasks
 - [x] Need to be able to add accounts for institutions already added
 - [x] Split up pages into their own files on dashboard
 - [x] Add webhook functionality, queuing, and syncing

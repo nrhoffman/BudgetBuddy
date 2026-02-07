@@ -7,7 +7,6 @@ into their corresponding domain model representations.
 
 from decimal import Decimal
 
-from app.logger import logger
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.models.account import Account
@@ -23,28 +22,17 @@ def orm_to_domain_account(orm: AccountORM) -> Account:
 
     Returns:
         Account: The domain account object.
-
-    Raises:
-        Exception: If conversion fails.
     """
-    try:
-        return Account(
-            id=orm.id,
-            name=orm.name,
-            type=orm.type,
-            subtype=orm.subtype,
-            balance=float(orm.balance),
-            initial_balance=Decimal(orm.initial_balance),
-            initial_import_completed_at=orm.initial_import_completed_at,
-            transactions=[orm_to_domain_transaction(tx) for tx in orm.transactions],
-        )
-    except Exception:  # pylint: disable=broad-except
-        logger.error(
-            "Failed to convert AccountORM to Account",
-            extra={"account_id": getattr(orm, "id", None)},
-            exc_info=True,
-        )
-        raise
+    return Account(
+        id=orm.id,
+        name=orm.name,
+        type=orm.type,
+        subtype=orm.subtype,
+        balance=float(orm.balance),
+        initial_balance=Decimal(orm.initial_balance),
+        initial_import_completed_at=orm.initial_import_completed_at,
+        transactions=[orm_to_domain_transaction(tx) for tx in orm.transactions],
+    )
 
 
 def orm_to_domain_transaction(orm: TransactionORM) -> Transaction:
@@ -56,30 +44,19 @@ def orm_to_domain_transaction(orm: TransactionORM) -> Transaction:
 
     Returns:
         Transaction: The domain transaction object.
-
-    Raises:
-        Exception: If conversion fails.
     """
-    try:
-        return Transaction(
-            transaction_id=orm.id,
-            account_id=orm.account_id,
-            amount=Decimal(orm.amount),
-            date=orm.date,
-            balance_after=orm.balance_after,
-            name=orm.name,
-            merchant_name=orm.merchant_name,
-            category_primary=orm.category_primary,
-            category_detailed=orm.category_detailed,
-            category_confidence_level=orm.category_confidence_level,
-            pending=orm.pending,
-            iso_currency_code=orm.iso_currency_code,
-            unofficial_currency_code=orm.unofficial_currency_code,
-        )
-    except Exception:  # pylint: disable=broad-except
-        logger.error(
-            "Failed to convert TransactionORM to Transaction",
-            extra={"transaction_id": getattr(orm, "id", None)},
-            exc_info=True,
-        )
-        raise
+    return Transaction(
+        transaction_id=orm.id,
+        account_id=orm.account_id,
+        amount=Decimal(orm.amount),
+        date=orm.date,
+        balance_after=orm.balance_after,
+        name=orm.name,
+        merchant_name=orm.merchant_name,
+        category_primary=orm.category_primary,
+        category_detailed=orm.category_detailed,
+        category_confidence_level=orm.category_confidence_level,
+        pending=orm.pending,
+        iso_currency_code=orm.iso_currency_code,
+        unofficial_currency_code=orm.unofficial_currency_code,
+    )

@@ -1,14 +1,18 @@
 import pytest
 from decimal import Decimal
 from datetime import datetime
-from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.models.transaction import UpdateTransaction
 from app.services.account_service import AccountService
+from app.exceptions import DatabaseError, NotFoundError, ValidationError
 
 
+# ---------------------------
+# Fixtures
+# ---------------------------
 @pytest.fixture
 def account_repo_mock(mocker):
     return mocker.Mock()
@@ -73,27 +77,29 @@ def sample_transaction_after_import():
 # ---------------------------
 @pytest.mark.parametrize("side_effect,expected_exception", [
     (None, None),
-    (SQLAlchemyError("fail"), HTTPException),
+    (SQLAlchemyError("fail"), DatabaseError),
 ])
 def test_create_account(account_service, sample_account, account_repo_mock, side_effect, expected_exception):
     account_repo_mock.add_account.side_effect = side_effect
+
     if expected_exception:
-        with pytest.raises(HTTPException):
+        with pytest.raises(expected_exception):
             account_service.create_account(sample_account, "user1")
     else:
         result = account_service.create_account(sample_account, "user1")
         assert result["account_id"] == sample_account.id
+        assert result["message"] == "Account created"
 
 
 # ---------------------------
 # get_account
 # ---------------------------
-@pytest.mark.parametrize("repo_return,expected_exception,status_code", [
-    ("found", None, None),
-    (None, HTTPException, status.HTTP_404_NOT_FOUND),
-    ("error", HTTPException, status.HTTP_500_INTERNAL_SERVER_ERROR)
+@pytest.mark.parametrize("repo_return,expected_exception", [
+    ("found", None),
+    (None, NotFoundError),
+    ("error", DatabaseError)
 ])
-def test_get_account(account_service, account_repo_mock, sample_account, repo_return, expected_exception, status_code):
+def test_get_account(account_service, account_repo_mock, sample_account, repo_return, expected_exception):
     if repo_return == "found":
         account_repo_mock.get.return_value = sample_account
     elif repo_return == "error":
@@ -102,9 +108,8 @@ def test_get_account(account_service, account_repo_mock, sample_account, repo_re
         account_repo_mock.get.return_value = None
 
     if expected_exception:
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(expected_exception):
             account_service.get_account("acc1", "user1")
-        assert exc.value.status_code == status_code
     else:
         result = account_service.get_account("acc1", "user1")
         assert result == sample_account
@@ -113,59 +118,60 @@ def test_get_account(account_service, account_repo_mock, sample_account, repo_re
 # ---------------------------
 # update_account
 # ---------------------------
-@pytest.mark.parametrize("account_name,balance,expect_exception,status_code", [
-    ("New Name", None, False, None),
-    (None, 200.0, False, None),
-    ("New Name", 200.0, False, None),
-    (None, None, True, status.HTTP_400_BAD_REQUEST)
+@pytest.mark.parametrize("account_name,balance,expected_exception", [
+    ("New Name", None, None),
+    (None, 200.0, None),
+    ("New Name", 200.0, None),
+    (None, None, ValidationError)
 ])
-def test_update_account(account_service, account_repo_mock, account_name, balance, expect_exception, status_code):
-    if expect_exception:
-        with pytest.raises(HTTPException) as exc:
+def test_update_account(account_service, account_repo_mock, account_name, balance, expected_exception):
+    if expected_exception:
+        with pytest.raises(expected_exception):
             account_service.update_account("acc1", "user1", account_name=account_name, balance=balance)
-        assert exc.value.status_code == status_code
     else:
         account_repo_mock.update_account.return_value = None
         result = account_service.update_account("acc1", "user1", account_name=account_name, balance=balance)
-        assert result["message"] == "Account updated successfully"
+        # The service returns None on success, so no assert needed here
+        assert result is None
 
 
-def test_update_account_exception(account_service, account_repo_mock):
-    account_repo_mock.update_account.side_effect = Exception("fail")
-    with pytest.raises(HTTPException) as exc:
+@pytest.mark.parametrize("side_effect,expected_exception", [
+    (ValueError("Not found"), NotFoundError),
+    (Exception("fail"), DatabaseError)
+])
+def test_update_account_exception(account_service, account_repo_mock, side_effect, expected_exception):
+    account_repo_mock.update_account.side_effect = side_effect
+    with pytest.raises(expected_exception):
         account_service.update_account("acc1", "user1", account_name="name")
-    assert exc.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 # ---------------------------
 # remove_account
 # ---------------------------
-@pytest.mark.parametrize("side_effect,expected_exception,status_code", [
-    (None, False, None),
-    (ValueError("Not found"), True, status.HTTP_404_NOT_FOUND),
-    (Exception("fail"), True, status.HTTP_500_INTERNAL_SERVER_ERROR),
+@pytest.mark.parametrize("side_effect,expected_exception", [
+    (None, None),
+    (ValueError("Not found"), NotFoundError),
+    (Exception("fail"), DatabaseError)
 ])
-def test_remove_account(account_service, account_repo_mock, side_effect, expected_exception, status_code):
+def test_remove_account(account_service, account_repo_mock, side_effect, expected_exception):
     account_repo_mock.delete_account.side_effect = side_effect
     if expected_exception:
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(expected_exception):
             account_service.remove_account("acc1", "user1")
-        assert exc.value.status_code == status_code
     else:
         result = account_service.remove_account("acc1", "user1")
-        assert result["message"] == "Account deleted successfully"
+        assert result is None
 
 
 # ---------------------------
 # apply_transaction_changes
 # ---------------------------
-def test_apply_transaction_changes(account_service, txn_repo_mock, account_repo_mock, sample_transaction_after_import, sample_account):
-    # Patch internal helpers to track calls
+def test_apply_transaction_changes(account_service, txn_repo_mock, sample_transaction_after_import, sample_account):
     account_service._remove_transactions = lambda user_id, removed: setattr(account_service, "removed_called", True)
-    account_service._upsert_transactions = lambda user_id, txns: setattr(account_service, "upsert_called", True)
+    account_service._upsert_transactions = lambda txns: setattr(account_service, "upsert_called", True)
     account_service._rebalance_accounts = lambda user_id, boundaries: setattr(account_service, "rebalance_called", True)
 
-    account_repo_mock.get.return_value = sample_account
+    account_service.account_repo.get.return_value = sample_account
     txn_repo_mock.get_by_ids.return_value = [sample_transaction_after_import]
 
     account_service.apply_transaction_changes(
@@ -195,7 +201,6 @@ def test_find_earliest_dates(account_service, account_repo_mock, txn_repo_mock,
         removed=[]
     )
 
-    assert "acc1" in boundaries
     assert boundaries["acc1"]["latest_before_import"] == sample_transaction_before_import.date
     assert boundaries["acc1"]["earliest_after_import"] == sample_transaction_after_import.date
 
@@ -204,26 +209,21 @@ def test_find_earliest_dates(account_service, account_repo_mock, txn_repo_mock,
 # get_user_financial_snapshot
 # ---------------------------
 @pytest.mark.parametrize(
-    "side_effect,expected_exception,status_code,result_value",
+    "side_effect,expected_exception,result_value",
     [
-        (None, False, None, ["account1"]),
-        (SQLAlchemyError("fail"), True, status.HTTP_500_INTERNAL_SERVER_ERROR, None)
+        (None, None, ["account1"]),
+        (SQLAlchemyError("fail"), DatabaseError, None)
     ]
 )
-def test_get_user_financial_snapshot(
-    account_service, account_repo_mock,
-    side_effect, expected_exception, status_code, result_value
-):
+def test_get_user_financial_snapshot(account_service, account_repo_mock, side_effect, expected_exception, result_value):
     account_repo_mock.get_all_accounts_with_transactions.side_effect = side_effect
 
-    # Only set return_value if there is no side effect
     if side_effect is None:
         account_repo_mock.get_all_accounts_with_transactions.return_value = result_value
 
     if expected_exception:
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(expected_exception):
             account_service.get_user_financial_snapshot("user1")
-        assert exc.value.status_code == status_code
     else:
         result = account_service.get_user_financial_snapshot("user1")
         assert result == result_value

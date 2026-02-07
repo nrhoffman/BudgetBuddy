@@ -2,19 +2,20 @@
 Authentication API endpoints: login, sign-up, and check authentication.
 
 Provides structured endpoints for user login, account creation, and
-authentication verification, with type hints, logging, and exception handling.
+authentication verification
 """
 
 import uuid
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from app.auth.password import hash_password
 from app.dependencies import get_auth_service, get_current_user
 from app.models.user import User, UserCreate
 from app.models.auth import LoginRequest
 from app.services.auth_service import AuthService
 from app.logger import logger
+from app.exceptions import AuthenticationError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -33,24 +34,20 @@ def login(
 
     Returns:
         Result of login operation.
-
-    Raises:
-        HTTPException: If login fails.
     """
-    try:
-        result = auth_service.login(username=req.username, password=req.password)
-        logger.debug("User %s successfully logged in", req.username)
-        return result
-    except Exception as exc:
-        logger.exception("Failed login attempt for user %s", req.username)
-        raise HTTPException(status_code=401, detail="Invalid credentials") from exc
+    token = auth_service.login(username=req.username, password=req.password)
+    return {
+        "message": "Login successful",
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/sign-up")
 def create_user(
     user_create: UserCreate,
     auth_service: AuthService = Depends(get_auth_service),
-) -> User:
+) -> dict[str, str]:
     """
     Create a new user with hashed password.
 
@@ -60,28 +57,20 @@ def create_user(
 
     Returns:
         The created User object.
-
-    Raises:
-        HTTPException: If user creation fails.
     """
-    try:
-        user = User(
-            id=str(uuid.uuid4()),
-            username=user_create.username,
-            email=user_create.email,
-            hashed_password=hash_password(user_create.password),
-            role=user_create.role,
-        )
-        created_user = auth_service.create_user(user)
-        logger.debug("Created new user %s with id %s", user.username, user.id)
-        return created_user
-    except Exception as exc:
-        logger.exception("Failed to create user %s", user_create.username)
-        raise HTTPException(status_code=500, detail="Failed to create user") from exc
+    user = User(
+        id=str(uuid.uuid4()),
+        username=user_create.username,
+        email=user_create.email,
+        hashed_password=hash_password(user_create.password),
+        role=user_create.role,
+    )
+    created_user = auth_service.create_user(user)
+    return {"message": "User created successfully", "user_id": created_user}
 
 
 @router.post("/check-login")
-def check_login(_current_user: User = Depends(get_current_user)) -> Dict[str, str]:
+def check_login(_current_user: User = Depends(get_current_user)) -> dict[str, str]:
     """
     Simple endpoint to verify user authentication.
 
@@ -94,9 +83,10 @@ def check_login(_current_user: User = Depends(get_current_user)) -> Dict[str, st
     Raises:
         HTTPException: If user is not authenticated.
     """
+
     if not _current_user:
         logger.warning("Unauthorized access attempt to check-login")
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise AuthenticationError("Not authenticated")
 
-    logger.debug("Authentication check passed for user %s", _current_user.username)
+    logger.info("Authentication check passed for user %s", _current_user.username)
     return {"message": "success"}

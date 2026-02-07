@@ -1,21 +1,18 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
-
-from app.routes.accounts import router, get_account_service, get_current_user
-from app.models.transaction import UpdateTransaction
 from fastapi import FastAPI
+
+from app.routes.accounts import router
+from app.dependencies import get_account_service, get_current_user
+from app.models.transaction import UpdateTransaction
 
 # --------------------------
 # Setup TestClient with FastAPI app
 # --------------------------
 app = FastAPI()
 app.include_router(router)
-client = TestClient(app)
 
-# --------------------------
-# Fixtures
-# --------------------------
 @pytest.fixture
 def mock_account_service():
     return MagicMock()
@@ -28,142 +25,103 @@ def mock_current_user():
 
 @pytest.fixture(autouse=True)
 def override_dependencies(mock_account_service, mock_current_user):
-    # Override dependencies on the FastAPI app, not the router
     app.dependency_overrides[get_account_service] = lambda: mock_account_service
     app.dependency_overrides[get_current_user] = lambda: mock_current_user
     yield
     app.dependency_overrides.clear()
 
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
 # --------------------------
-# Tests
+# get_accounts tests
 # --------------------------
 @pytest.mark.parametrize(
-    "accounts, expected_length",
+    "accounts, service_return",
     [
-        ([], 0),
-        ([{"id": "a1"}, {"id": "a2"}], 2),
-    ],
+        ([], []),
+        ([{"id": "a1"}, {"id": "a2"}], [{"id": "a1"}, {"id": "a2"}]),
+    ]
 )
-def test_get_accounts_success(mock_account_service, mock_current_user, accounts, expected_length):
-    mock_account_service.get_user_financial_snapshot.return_value = accounts
+def test_get_accounts(client, mock_account_service, accounts, service_return):
+    mock_account_service.get_user_financial_snapshot.return_value = service_return
     response = client.get("/api/accounts/get-accounts")
     assert response.status_code == 200
     data = response.json()
     assert "accounts" in data
-    assert len(data["accounts"]) == expected_length
-    mock_account_service.get_user_financial_snapshot.assert_called_once_with(mock_current_user.id)
+    assert data["accounts"] == accounts
 
-def test_get_accounts_exception(mock_account_service):
-    mock_account_service.get_user_financial_snapshot.side_effect = Exception("fail")
-    response = client.get("/api/accounts/get-accounts")
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to fetch accounts"
 
+# --------------------------
+# update_account tests
+# --------------------------
 @pytest.mark.parametrize(
     "account_id, account_name",
-    [("acc1", "NewName"), ("acc2", "AnotherName")]
+    [
+        ("acc1", "NewName"),
+        ("acc2", "AnotherName"),
+    ]
 )
-def test_update_account_success(mock_account_service, mock_current_user, account_id, account_name):
-    mock_account_service.update_account.return_value = {"updated": True}
+def test_update_account(client, mock_account_service, account_id, account_name):
+    mock_account_service.update_account.return_value = None
     response = client.post(f"/api/accounts/update-account/{account_id}/{account_name}")
     assert response.status_code == 200
-    assert response.json() == {"updated": True}
+    assert response.json() == {"message": "Account updated successfully"}
     mock_account_service.update_account.assert_called_once_with(
         account_id=account_id,
-        user_id=mock_current_user.id,
+        user_id="user_123",
         account_name=account_name
     )
+    mock_account_service.update_account.reset_mock()
 
-def test_update_account_exception(mock_account_service):
-    mock_account_service.update_account.side_effect = Exception("fail")
-    response = client.post("/api/accounts/update-account/acc1/NewName")
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to update account"
 
+# --------------------------
+# remove_account tests
+# --------------------------
 @pytest.mark.parametrize("account_id", ["acc1", "acc2"])
-def test_remove_account_success(mock_account_service, mock_current_user, account_id):
-    mock_account_service.remove_account.return_value = {"removed": True}
+def test_remove_account(client, mock_account_service, account_id):
+    mock_account_service.remove_account.return_value = None
     response = client.delete(f"/api/accounts/remove-account/{account_id}")
     assert response.status_code == 200
-    assert response.json() == {"removed": True}
-    mock_account_service.remove_account.assert_called_once_with(account_id, mock_current_user.id)
+    assert response.json() == {"message": "Account deleted successfully"}
+    mock_account_service.remove_account.assert_called_once_with(account_id, "user_123")
+    mock_account_service.remove_account.reset_mock()
 
-def test_remove_account_exception(mock_account_service):
-    mock_account_service.remove_account.side_effect = Exception("fail")
-    response = client.delete("/api/accounts/remove-account/acc1")
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to remove account"
 
 # --------------------------
-# Transaction update tests
+# update_transaction tests
 # --------------------------
 @pytest.mark.parametrize(
-    "existing_tx, payload_data, expected_status",
+    "payload_data",
     [
-        ({"transaction_id": "tx1", "account_id": "acc1"}, {"name": "updated"}, "ok"),
+        ({"name": "updated"}),
+        ({"name": "another_update"}),
     ]
 )
-def test_update_transaction_success(mock_account_service, mock_current_user, existing_tx, payload_data, expected_status):
-    class MockTxn:
-        account_id = existing_tx["account_id"]
-        def model_copy(self, update=None):
-            return {"transaction_id": "tx1", **(update or {})}
-
-    mock_account_service.txn_repo.get_by_ids.return_value = [MockTxn()]
-    mock_account_service.apply_transaction_changes = MagicMock()
+def test_update_transaction(client, mock_account_service, payload_data):
+    mock_account_service.update_transaction.return_value = None
     payload = UpdateTransaction(**payload_data)
-    response = client.post(f"/api/accounts/{existing_tx['account_id']}/transactions/{existing_tx['transaction_id']}", json=payload.dict())
+    response = client.post(f"/api/accounts/acc1/transactions/tx1", json=payload.model_dump())
     assert response.status_code == 200
-    assert response.json()["status"] == expected_status
-    mock_account_service.apply_transaction_changes.assert_called_once()
+    assert response.json() == {"status": "ok"}
+    mock_account_service.update_transaction.assert_called_once()
+    mock_account_service.update_transaction.reset_mock()
 
-@pytest.mark.parametrize(
-    "existing_list, account_id",
-    [
-        ([], "acc1"),  # Transaction not found
-        ([MagicMock(account_id="wrong_acc")], "acc1")  # Transaction does not belong
-    ]
-)
-def test_update_transaction_404(mock_account_service, existing_list, account_id):
-    mock_account_service.txn_repo.get_by_ids.return_value = existing_list
-    payload = UpdateTransaction(name="test")
-    response = client.post(f"/api/accounts/{account_id}/transactions/tx1", json=payload.dict())
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Transaction not found"
-
-def test_update_transaction_exception(mock_account_service):
-    mock_account_service.txn_repo.get_by_ids.side_effect = Exception("fail")
-    payload = UpdateTransaction(name="test")
-    response = client.post("/api/accounts/acc1/transactions/tx1", json=payload.dict())
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to update transaction"
 
 # --------------------------
 # get_institutions tests
 # --------------------------
 @pytest.mark.parametrize(
-    "institutions, expected_length",
+    "institutions",
     [
-        ([], 0),
-        ([{"id": "inst1"}, {"id": "inst2"}], 2),
-    ],
+        [],
+        [{"id": "inst1"}, {"id": "inst2"}],
+    ]
 )
-def test_get_institutions_success(mock_account_service, mock_current_user, institutions, expected_length):
-    # Mock the service call
+def test_get_institutions(client, mock_account_service, institutions):
     mock_account_service.get_institutions.return_value = institutions
-
     response = client.get("/api/accounts/get-institutions")
     assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == expected_length
-    mock_account_service.get_institutions.assert_called_once_with(user_id=mock_current_user.id)
-
-
-def test_get_institutions_exception(mock_account_service, mock_current_user):
-    # Simulate exception in the service layer
-    mock_account_service.get_institutions.side_effect = Exception("fail")
-
-    response = client.get("/api/accounts/get-institutions")
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Failed to fetch institutions"
+    assert response.json() == institutions
