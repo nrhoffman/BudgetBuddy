@@ -107,6 +107,7 @@ class TransactionRepository:
         result = self.session.execute(stmt)
         rowcount = result.rowcount or 0
         return rowcount
+
     # ---------------------------
     # Delete methods
     # ---------------------------

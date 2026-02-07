@@ -52,7 +52,7 @@ class NotFoundError(AppError):
 
 
 class ConflictError(AppError):
-    """Raised when a resource conflicts with an existing entity (e.g., username/email 
+    """Raised when a resource conflicts with an existing entity (e.g., username/email
     exists).
     """
 

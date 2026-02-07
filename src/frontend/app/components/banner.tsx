@@ -6,11 +6,13 @@ import { useEffect, useState } from "react";
 export default function Banner() {
   const router = useRouter();
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    setIsLoggedIn(Boolean(token));
+    setTimeout(() => {
+      setIsLoggedIn(Boolean(token));
+    }, 0);
   }, []);
 
   const handleLogout = () => {
@@ -19,12 +21,10 @@ export default function Banner() {
     router.push("/");
   };
 
-  if (isLoggedIn === null) return null;
-
   return (
     <header className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg">
       <h1 className="text-4xl font-bold">Budget Buddy</h1>
-      
+
       <div className="flex gap-4">
         {isLoggedIn && (
           <button
