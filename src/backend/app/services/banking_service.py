@@ -1,15 +1,14 @@
 """
 Banking service layer.
 
-This module defines business logic for integrating with external banking
-providers. It handles link token creation, account linking, and
-synchronization of bank accounts and transactions through the account
-service. Includes structured logging and HTTPException handling.
+Provides high-level banking operations including institution linking,
+account synchronization, transaction retrieval, and webhook handling.
+Coordinates external banking providers with internal persistence layers
+using structured logging and domain-specific exception handling.
 """
 
 from datetime import datetime, timedelta
 from typing import Optional, Any
-from fastapi import HTTPException, status
 
 from app.logger import logger
 from app.tasks.plaid import sync_transactions
@@ -19,14 +18,21 @@ from app.repositories.bank_repository import BankRepository
 from app.repositories.account_repository import AccountRepository
 from app.services.account_service import AccountService
 from app.models.transaction import Transaction
+from app.exceptions import (
+    ConflictError,
+    DatabaseError,
+    ValidationError,
+    ExternalServiceError,
+)
 
 
 class BankingService:
     """
     Service layer for banking-related operations.
 
-    Handles interaction with external banking providers and coordinates
-    account and transaction persistence via AccountService.
+    This service manages the lifecycle of bank institutions, accounts,
+    and transactions by coordinating between external banking providers
+    and internal repositories and services.
     """
 
     def __init__(
@@ -36,15 +42,6 @@ class BankingService:
         bank_repo: BankRepository,
         banking_provider: Optional[BankingProvider] = None,
     ):
-        """
-        Initialize the BankingService.
-
-        Args:
-            account_service: Service for account and transaction persistence.
-            account_repo: Repository for account data.
-            bank_repo: Repository for bank tokens and cursors.
-            banking_provider: Optional external banking provider implementation.
-        """
         self.account_service = account_service
         self.account_repo = account_repo
         self.bank_repo = bank_repo
@@ -55,33 +52,28 @@ class BankingService:
     # ---------------------------
     def create_bank_link_token(self, user_id: str) -> dict[str, str]:
         """
-        Create a bank link token for a user.
+        Create a bank link token for initiating account linking.
 
         Args:
-            user_id: Identifier of the authenticated user.
+            user_id (str): Identifier of the user requesting the link token.
 
         Returns:
-            Dictionary containing the provider-generated link token.
+            dict[str, str]: Provider-specific link token payload.
 
         Raises:
-            HTTPException: If banking provider is not configured.
+            ExternalServiceError: If the banking provider is not configured
+                or token creation fails.
         """
         if not self.banking_provider:
             logger.error("Banking provider not configured")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Banking provider not configured",
-            )
+            raise ExternalServiceError("Banking provider not configured")
 
         try:
             logger.info("Creating bank link token for user %s", user_id)
             return self.banking_provider.create_link_token(user_id)
         except Exception as exc:
             logger.exception("Failed to create link token for user %s", user_id)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create link token",
-            ) from exc
+            raise ExternalServiceError("Failed to create link token") from exc
 
     # ---------------------------
     # Bank account linking
@@ -92,41 +84,35 @@ class BankingService:
         public_token: str,
         institution_id: Optional[str] = None,
         institution_name: Optional[str] = None,
-    ) -> dict[str, Any]:
+    ) -> None:
         """
-        Exchange a public token for an institution and sync bank accounts
+        Link a new bank institution and synchronize its accounts
         and transactions.
 
-        Args:
-            user_id: Identifier of the authenticated user.
-            public_token: Public token returned by the banking provider.
-            institution_id: Optional institution ID.
-            institution_name: Optional institution name.
+        Exchanges a public token for an access token, persists institution
+        metadata, creates accounts, and applies recent transactions.
 
-        Returns:
-            Dictionary with status and number of accounts added.
+        Args:
+            user_id (str): Identifier of the user linking the institution.
+            public_token (str): Temporary public token from the provider.
+            institution_id (Optional[str]): Provider institution identifier.
+            institution_name (Optional[str]): Human-readable institution name.
 
         Raises:
-            HTTPException: If provider is not configured or sync fails.
+            ConflictError: If the institution is already linked.
+            ExternalServiceError: If provider interaction or syncing fails.
         """
         if not self.banking_provider:
             logger.error("Banking provider not configured")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Banking provider not configured",
-            )
+            raise ExternalServiceError("Banking provider not configured")
 
         try:
             exchange_result = self.banking_provider.exchange_public_token(public_token)
 
+            # Check if the institution is already linked
             existing_token = self.bank_repo.get_by_user(user_id, institution_id)
             if existing_token:
-                return {
-                    "status": "already_linked",
-                    "institution_id": institution_id,
-                    "institution_name": institution_name,
-                    "item_id": existing_token.item_id,
-                }
+                raise ConflictError("Bank institution already linked")
 
             exchange_token = ExchangeToken(
                 public_token=exchange_result.access_token,
@@ -145,19 +131,20 @@ class BankingService:
                 exchange_result.access_token
             ) or []
             if not accounts:
-                return {"status": "linked", "accounts_added": 0}
+                logger.info("No accounts returned from provider for user %s", user_id)
+                return
 
-            all_transactions = self.get_transactions_within_dates(
-                access_token=exchange_result.access_token,
+            transactions = self.get_transactions_within_dates(
+                exchange_result.access_token
             )
 
             for account in accounts:
                 self.account_service.create_account(account, user_id)
-                account_transactions = [
-                    tx for tx in all_transactions if tx.account_id == account.id
+                account_txns = [
+                    tx for tx in transactions if tx.account_id == account.id
                 ]
                 self.account_service.apply_transaction_changes(
-                    user_id=user_id, added=account_transactions, modified=[], removed=[]
+                    user_id=user_id, added=account_txns, modified=[], removed=[]
                 )
 
             sync_result = self.banking_provider.get_transactions_sync(
@@ -166,117 +153,94 @@ class BankingService:
             self.bank_repo.save_cursor(
                 user_id=user_id,
                 item_id=exchange_result.item_id,
-                cursor=sync_result["next_cursor"]
+                cursor=sync_result.get("next_cursor")
             )
 
-            return {"status": "linked", "accounts_added": len(accounts)}
-
+        except ConflictError:
+            raise
         except Exception as exc:
             logger.exception("Failed to link bank accounts for user %s", user_id)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to link bank accounts",
-            ) from exc
+            raise ExternalServiceError("Failed to link bank accounts") from exc
 
     def add_bank_accounts(
-        self,
-        user_id: str,
-        institution_id: Optional[str] = None,
-    ) -> dict[str, Any]:
+            self, user_id: str,
+            institution_id: Optional[str] = None
+    ) -> int:
         """
-        Sync bank accounts and transactions for a user and institution.
-
-        This method:
-        - Retrieves the existing Plaid access token for the user/institution
-        - Fetches accounts from the banking provider
-        - Filters out accounts that already exist in the database
-        - Creates new accounts
-        - Fetches recent transactions and applies them to newly created accounts
+        Synchronize newly added bank accounts for an existing institution.
 
         Args:
-            user_id: The authenticated user's ID.
-            institution_id: Optional Plaid institution ID to scope the sync.
+            user_id (str): Identifier of the user.
+            institution_id (Optional[str]): Institution to sync accounts for.
 
         Returns:
-            A dictionary containing:
-                - status: Sync status string
-                - accounts_added: Number of newly created accounts
+            int: Number of newly created accounts.
 
         Raises:
-            RuntimeError: If token lookup, account creation, or transaction sync fails.
+            ValidationError: If no bank token exists for the user.
+            DatabaseError: If retrieving the bank token fails.
+            ExternalServiceError: If provider synchronization fails.
         """
+        if not self.banking_provider:
+            logger.error("Banking provider not configured")
+            raise ExternalServiceError("Banking provider not configured")
+
         try:
-            existing_token = self.bank_repo.get_by_user(user_id, institution_id)
-            if not existing_token:
-                raise RuntimeError("No bank token found for user")
-
-            new_accounts = (
-                self.banking_provider.get_accounts(existing_token.access_token) or []
+            token = self.bank_repo.get_by_user(user_id, institution_id)
+        except Exception as exc:
+            logger.exception(
+                "Database error retrieving bank token for user %s",
+                user_id
             )
+            raise DatabaseError("Failed to retrieve bank token") from exc
 
-            existing_accounts = (
-                self.account_repo.get_all_accounts_with_transactions(user_id=user_id)
+        if not token:
+            raise ValidationError("No bank token found for user")
+        try:
+            new_accounts = self.banking_provider.get_accounts(
+                token.access_token
+            ) or []
+
+            existing_accounts = self.account_repo.get_all_accounts_with_transactions(
+                user_id
             )
-
-            existing_account_ids = {
-                acct.id for acct in existing_accounts
-            }
-
+            existing_ids = {acct.id for acct in existing_accounts}
             accounts_to_create = [
-                acct for acct in new_accounts
-                if acct.id not in existing_account_ids
+                acct for acct in new_accounts if acct.id not in existing_ids
             ]
 
             if not accounts_to_create:
-                return {"status": "linked", "accounts_added": 0}
+                return 0
 
-            all_transactions = self.get_transactions_within_dates(
-                access_token=existing_token.access_token
-            )
-
+            transactions = self.get_transactions_within_dates(token.access_token)
             created_count = 0
 
             for account in accounts_to_create:
                 self.account_service.create_account(account, user_id)
-
-                account_transactions = [
-                    tx for tx in all_transactions
-                    if tx.account_id == account.id
+                account_txns = [
+                    tx for tx in transactions if tx.account_id == account.id
                 ]
-
                 self.account_service.apply_transaction_changes(
-                    user_id=user_id,
-                    added=account_transactions,
-                    modified=[],
-                    removed=[],
+                    user_id=user_id, added=account_txns, modified=[], removed=[]
                 )
-
                 created_count += 1
 
-            return {
-                "status": "linked",
-                "accounts_added": created_count,
-            }
+            return created_count
+        except ValidationError:
+            raise
         except Exception as exc:
-            logger.exception(
-                "Failed to sync bank accounts for user %s: %s",
-                user_id,
-                exc,
-            )
-            raise RuntimeError("Failed to sync bank accounts") from exc
+            logger.exception("Failed to sync bank accounts for user %s", user_id)
+            raise ExternalServiceError("Failed to sync bank accounts") from exc
 
     # ---------------------------
     # Plaid webhook
     # ---------------------------
-    def plaid_webhook(self, payload: dict[str, Any]) -> dict[str, str]:
+    def plaid_webhook(self, payload: dict[str, Any]) -> None:
         """
-        Handle Plaid webhook events.
+        Handle incoming Plaid webhook events.
 
         Args:
-            payload: Webhook payload from Plaid.
-
-        Returns:
-            Dictionary indicating processing status.
+            payload (dict[str, Any]): Raw webhook payload from the provider.
         """
         logger.info("Received Plaid webhook", extra={"payload": payload})
 
@@ -287,17 +251,21 @@ class BankingService:
         if webhook_type != "TRANSACTIONS" or webhook_code not in {
             "SYNC_UPDATES_AVAILABLE", "INITIAL_UPDATE"
         }:
-            return {"status": "ignored"}
+            logger.info(
+                "Ignoring webhook type %s / code %s",
+                webhook_type,
+                webhook_code
+            )
+            return
 
         self.enqueue_plaid_sync(item_id)
-        return {"status": "ok"}
 
     def enqueue_plaid_sync(self, item_id: str) -> None:
         """
-        Queue a background task to sync transactions for the given item.
+        Enqueue a background task to synchronize transactions.
 
         Args:
-            item_id: Identifier of the bank item to sync.
+            item_id (str): Provider item identifier to sync.
         """
         logger.info("Queuing Plaid sync for item_id: %s", item_id)
         sync_transactions.delay(item_id)
@@ -307,36 +275,31 @@ class BankingService:
     # ---------------------------
     def get_transactions_within_dates(self, access_token: str) -> list[Transaction]:
         """
-        Fetch transactions for the past 90 days for a given access token.
+        Retrieve transactions from the past 90 days.
 
         Args:
-            access_token (str): The Plaid (or other banking provider) access token
-                                for the user's account.
+            access_token (str): Provider access token.
 
         Returns:
-            list[Transaction]: A list of Transaction objects within the date range.
+            list[Transaction]: List of retrieved transactions.
 
         Raises:
-            RuntimeError: If the banking provider fails to fetch transactions.
+            ExternalServiceError: If the provider is not configured or
+                transaction retrieval fails.
         """
+        if not self.banking_provider:
+            logger.error("Banking provider not configured")
+            raise ExternalServiceError("Banking provider not configured")
         try:
             end_date = datetime.today().date()
             start_date = end_date - timedelta(days=90)
 
-            all_transactions = self.banking_provider.get_transactions(
+            transactions = self.banking_provider.get_transactions(
                 access_token=access_token,
                 start_date=start_date,
                 end_date=end_date
             )
-
-            return all_transactions
-
+            return transactions or []
         except Exception as exc:
-            logger.exception(
-                "Failed to fetch transactions for access_token %s: %s",
-                access_token,
-                exc
-            )
-            raise RuntimeError(
-                f"Error fetching transactions for access_token {access_token}"
-            ) from exc
+            logger.exception("Failed to fetch transactions for access_token")
+            raise ExternalServiceError("Failed to fetch transactions") from exc

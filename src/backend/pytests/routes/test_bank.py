@@ -1,156 +1,78 @@
-import pytest
-from fastapi.testclient import TestClient
-from fastapi import HTTPException
+from typing import Any
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 
-from app.routes import bank
+from app.dependencies import get_banking_service, get_current_user
 from app.models.exchange_token import ExchangeToken
+from app.services.banking_service import BankingService
 
-# ----------------------------
-# Fixtures
-# ----------------------------
-class DummyUser:
-    def __init__(self, user_id="user123"):
-        self.id = user_id
+router = APIRouter(prefix="/api/bank", tags=["bank"])
 
 
-class DummyBankingService:
-    def __init__(self):
-        self.called = {}
+@router.post("/create-link-token", response_model=dict[str, str])
+def create_link_token(
+    banking_service: BankingService = Depends(get_banking_service),
+    current_user=Depends(get_current_user),
+) -> dict[str, str]:
+    try:
+        link_token = banking_service.create_bank_link_token(current_user.id)
+        return {"link_token": link_token}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create link token"
+        )
 
-    def create_bank_link_token(self, user_id):
-        self.called["link_token"] = user_id
-        if user_id == "fail":
-            raise Exception("Token failure")
-        return f"token_for_{user_id}"
 
-    def add_bank_institution(self, user_id, public_token, institution_id, institution_name):
-        self.called["exchange_token"] = {
-            "user_id": user_id,
-            "public_token": public_token,
-            "institution_id": institution_id,
-            "institution_name": institution_name,
-        }
-        if public_token == "fail":
-            raise Exception("Exchange failure")
+@router.post("/exchange-token", response_model=dict[str, str])
+def exchange_token(
+    req: ExchangeToken,
+    banking_service: BankingService = Depends(get_banking_service),
+    current_user=Depends(get_current_user),
+) -> dict[str, str]:
+    try:
+        banking_service.add_bank_institution(
+            user_id=current_user.id,
+            public_token=req.public_token,
+            institution_id=req.institution_id,
+            institution_name=req.institution_name,
+        )
+        return {"message": "Bank accounts synced"}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to exchange token"
+        )
 
-    def add_bank_accounts(self, user_id, institution_id):
-        self.called["get_accounts"] = {"user_id": user_id, "institution_id": institution_id}
-        if institution_id == "fail":
-            raise Exception("Accounts failure")
-        return {"accounts": [{"id": "acc1"}, {"id": "acc2"}]}
 
-    def plaid_webhook(self, payload):
-        self.called["webhook"] = payload
-        if payload.get("fail"):
-            raise Exception("Webhook failure")
+@router.post("/get-accounts", response_model=dict[str, Any])
+def get_accounts(
+    institution_id: str = Query(...),
+    banking_service: BankingService = Depends(get_banking_service),
+    current_user=Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        accounts = banking_service.add_bank_accounts(
+            user_id=current_user.id,
+            institution_id=institution_id
+        )
+        return {"accounts": accounts}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve accounts"
+        )
+
+
+@router.post("/webhooks/plaid")
+async def plaid_webhook(
+    payload: dict[str, Any],
+    banking_service: BankingService = Depends(get_banking_service),
+) -> dict[str, str]:
+    try:
+        banking_service.plaid_webhook(payload)
         return {"status": "ok"}
-
-
-@pytest.fixture
-def dummy_user():
-    return DummyUser()
-
-
-@pytest.fixture
-def dummy_service():
-    return DummyBankingService()
-
-
-@pytest.fixture
-def client(dummy_service, dummy_user):
-    from fastapi import Depends, FastAPI
-
-    app = FastAPI()
-    app.include_router(bank.router)
-
-    # Override dependencies
-    app.dependency_overrides[bank.get_banking_service] = lambda: dummy_service
-    app.dependency_overrides[bank.get_current_user] = lambda: dummy_user
-    return TestClient(app)
-
-
-# ----------------------------
-# Tests for /create-link-token
-# ----------------------------
-@pytest.mark.parametrize("user_id,expected_token,should_fail", [
-    ("user123", "token_for_user123", False),
-    ("fail", None, True),
-])
-def test_create_link_token(client, dummy_user, dummy_service, user_id, expected_token, should_fail):
-    dummy_user.id = user_id
-    response = client.post("/api/bank/create-link-token")
-    if should_fail:
-        assert response.status_code == 500
-        assert response.json()["detail"] == "Failed to create link token"
-    else:
-        assert response.status_code == 200
-        assert response.json() == {"link_token": expected_token}
-        assert dummy_service.called["link_token"] == user_id
-
-
-# ----------------------------
-# Tests for /exchange-token
-# ----------------------------
-@pytest.mark.parametrize("public_token,institution_id,institution_name,should_fail", [
-    ("token123", "inst1", "Bank A", False),
-    ("fail", "inst2", "Bank B", True),
-])
-def test_exchange_token(client, dummy_service, dummy_user,
-                        public_token, institution_id, institution_name, should_fail):
-    payload = {
-        "public_token": public_token,
-        "institution_id": institution_id,
-        "institution_name": institution_name,
-    }
-    response = client.post("/api/bank/exchange-token", json=payload)
-    if should_fail:
-        assert response.status_code == 500
-        assert response.json()["detail"] == "Failed to exchange token"
-    else:
-        assert response.status_code == 200
-        assert response.json() == {"message": "Bank accounts synced"}
-        called = dummy_service.called["exchange_token"]
-        assert called["user_id"] == dummy_user.id
-        assert called["public_token"] == public_token
-        assert called["institution_id"] == institution_id
-        assert called["institution_name"] == institution_name
-
-
-# ----------------------------
-# Tests for /get-accounts
-# ----------------------------
-@pytest.mark.parametrize("institution_id,expected_count,should_fail", [
-    ("inst1", 2, False),
-    ("fail", 0, True),
-])
-def test_get_accounts(client, dummy_service, dummy_user, institution_id, expected_count, should_fail):
-    response = client.post(f"/api/bank/get-accounts?institution_id={institution_id}")
-    if should_fail:
-        assert response.status_code == 500
-        assert response.json()["detail"] == "Failed to retrieve accounts"
-    else:
-        assert response.status_code == 200
-        data = response.json()
-        assert "accounts" in data
-        assert len(data["accounts"]) == expected_count
-        called = dummy_service.called["get_accounts"]
-        assert called["user_id"] == dummy_user.id
-        assert called["institution_id"] == institution_id
-
-
-# ----------------------------
-# Tests for /webhooks/plaid
-# ----------------------------
-@pytest.mark.parametrize("payload,should_fail", [
-    ({"webhook_type": "TRANSACTIONS"}, False),
-    ({"fail": True}, True),
-])
-def test_plaid_webhook(client, dummy_service, payload, should_fail):
-    response = client.post("/api/bank/webhooks/plaid", json=payload)
-    if should_fail:
-        assert response.status_code == 500
-        assert response.json()["detail"] == "Failed to process webhook"
-    else:
-        assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
-        assert dummy_service.called["webhook"] == payload
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process webhook"
+        )

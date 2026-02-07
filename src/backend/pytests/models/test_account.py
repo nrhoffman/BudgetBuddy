@@ -4,7 +4,7 @@ Parametrized tests for Account domain model and parsing functions.
 
 import pytest
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.account import (
     Account,
@@ -89,7 +89,7 @@ def test_account_model(account_id, name, type_, subtype, balance, transactions):
         balance=balance,
         transactions=transactions or [],
         initial_balance=balance,
-        initial_import_completed_at=datetime.utcnow(),
+        initial_import_completed_at=datetime.now(timezone.utc),
     )
 
     assert account.id == account_id

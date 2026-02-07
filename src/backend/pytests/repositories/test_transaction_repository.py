@@ -5,7 +5,6 @@ from datetime import datetime
 
 from app.repositories.transaction_repository import TransactionRepository
 from app.models.transaction import Transaction
-from sqlalchemy.exc import SQLAlchemyError
 
 # ---------------------------
 # Fixtures
@@ -58,42 +57,34 @@ def sample_txn2():
 # get_by_ids
 # ---------------------------
 @pytest.mark.parametrize(
-    "transaction_ids, orm_results, expected_count, raise_exc",
+    "transaction_ids, orm_results, expected_count",
     [
-        (["txn1", "txn2"], [MagicMock(), MagicMock()], 2, False),
-        ([], [], 0, False),
-        (["txn1"], [], 0, False),
-        (["txn1"], None, 0, True),
+        (["txn1", "txn2"], [MagicMock(), MagicMock()], 2),
+        ([], [], 0),
+        (["txn1"], [], 0),
     ]
 )
-def test_get_by_ids(repo, session, transaction_ids, orm_results, expected_count, raise_exc):
+def test_get_by_ids(repo, session, transaction_ids, orm_results, expected_count):
     session.query.return_value.filter.return_value.all.return_value = orm_results
-
-    if raise_exc:
-        session.query.side_effect = SQLAlchemyError("fail")
-        with pytest.raises(RuntimeError):
-            repo.get_by_ids(transaction_ids)
-    else:
-        with patch("app.repositories.transaction_repository.orm_to_domain_transaction",
-                   side_effect=lambda orm: orm):
-            result = repo.get_by_ids(transaction_ids)
-            assert len(result) == expected_count
+    with patch("app.repositories.transaction_repository.orm_to_domain_transaction",
+               side_effect=lambda orm: orm):
+        result = repo.get_by_ids(transaction_ids)
+        assert len(result) == expected_count
 
 # ---------------------------
 # bulk_upsert
 # ---------------------------
 @pytest.mark.parametrize(
-    "txns, execute_rowcount, expected_return, raise_exc",
+    "txns, execute_rowcount, expected_return",
     [
-        ([], 0, 0, False),                 # empty list
-        ("one_txn", 1, 1, False),          # single transaction
-        ("two_txns", 2, 2, False),         # multiple transactions
-        ("one_txn", None, 0, False),       # rowcount None
-        ("one_txn", None, None, True),     # exception
+        ([], 0, 0),                 # empty list
+        ("one_txn", 1, 1),          # single transaction
+        ("two_txns", 2, 2),         # multiple transactions
+        ("one_txn", None, 0),       # rowcount None
     ]
 )
-def test_bulk_upsert(repo, session, sample_txn, sample_txn2, txns, execute_rowcount, expected_return, raise_exc):
-    # Prepare proper transaction list
+def test_bulk_upsert(repo, session, sample_txn, sample_txn2, txns, execute_rowcount, expected_return):
+    # Prepare transaction list
     if txns == "one_txn":
         tx_list = [sample_txn]
     elif txns == "two_txns":
@@ -104,35 +95,22 @@ def test_bulk_upsert(repo, session, sample_txn, sample_txn2, txns, execute_rowco
     mock_result = MagicMock()
     mock_result.rowcount = execute_rowcount
 
-    if raise_exc:
-        session.execute.side_effect = SQLAlchemyError("fail")
-        with pytest.raises(RuntimeError):
-            repo.bulk_upsert("user1", tx_list)
-    else:
-        session.execute.return_value = mock_result
-        count = repo.bulk_upsert("user1", tx_list)
-        # If rowcount is None, repo should default to 0
-        expected_count = expected_return if expected_return is not None else 0
-        assert count == expected_count
+    session.execute.return_value = mock_result
+    count = repo.bulk_upsert(tx_list)
+    assert count == expected_return
 
 # ---------------------------
 # delete_by_ids
 # ---------------------------
 @pytest.mark.parametrize(
-    "transaction_ids, deleted_count, expected_return, raise_exc",
+    "transaction_ids, deleted_count, expected_return",
     [
-        ([], 0, 0, False),                 # empty list
-        (["txn1"], 1, 1, False),           # normal
-        (["txn1"], None, None, True),      # exception
+        ([], 0, 0),                 # empty list
+        (["txn1"], 1, 1),           # normal
+        (["txn1", "txn2"], 2, 2),   # multiple
     ]
 )
-def test_delete_by_ids(repo, session, transaction_ids, deleted_count, expected_return, raise_exc):
-    if raise_exc:
-        session.query.return_value.join.return_value.filter.return_value.delete.side_effect = SQLAlchemyError("fail")
-        with pytest.raises(RuntimeError):
-            repo.delete_by_ids("user1", transaction_ids)
-    else:
-        session.query.return_value.join.return_value.filter.return_value.delete.return_value = deleted_count
-        count = repo.delete_by_ids("user1", transaction_ids)
-        expected_count = expected_return if expected_return is not None else deleted_count
-        assert count == expected_count
+def test_delete_by_ids(repo, session, transaction_ids, deleted_count, expected_return):
+    session.query.return_value.join.return_value.filter.return_value.delete.return_value = deleted_count
+    count = repo.delete_by_ids("user1", transaction_ids)
+    assert count == expected_return

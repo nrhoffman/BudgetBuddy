@@ -15,10 +15,10 @@
 - [ ] Optionally set the description as a pattern in a transaction_rule table
 
 ## In Progress
-- [ ] Refactor - Keep exceptions/logging to services/routes/tasks
 - [ ] Have errors go to frontend and display
 
 ## Done
+- [x] Refactor - Keep exceptions/logging to services/routes/tasks
 - [x] Need to be able to add accounts for institutions already added
 - [x] Split up pages into their own files on dashboard
 - [x] Add webhook functionality, queuing, and syncing

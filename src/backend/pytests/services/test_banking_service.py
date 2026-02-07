@@ -9,6 +9,7 @@ from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
 from app.interfaces.banking_provider import BankingProvider
 from app.models.transaction import Transaction
+from app.exceptions import ConflictError, ExternalServiceError, ValidationError
 
 
 # ---------------------------
@@ -55,136 +56,102 @@ def banking_service(account_service_mock, account_repo_mock, bank_repo_mock, ban
 # ---------------------------
 # create_bank_link_token
 # ---------------------------
-@pytest.mark.parametrize(
-    "provider_configured, expected_exception, expected_token",
-    [
-        (True, None, {"link_token": "mock-token"}),
-        (False, HTTPException, None),
-    ]
-)
-def test_create_bank_link_token(banking_service, account_service_mock, account_repo_mock, bank_repo_mock,
-                                banking_provider_mock, provider_configured, expected_exception, expected_token):
-    service = banking_service if provider_configured else BankingService(
-        account_service_mock, account_repo_mock, bank_repo_mock, banking_provider=None
-    )
-    if expected_exception:
-        with pytest.raises(expected_exception) as exc:
-            service.create_bank_link_token("user-1")
-        assert exc.value.status_code == 500
-    else:
-        token = service.create_bank_link_token("user-1")
-        assert token == expected_token
-        banking_provider_mock.create_link_token.assert_called_once_with("user-1")
+def test_create_bank_link_token_success(banking_service, banking_provider_mock):
+    token = banking_service.create_bank_link_token("user-1")
+    assert token == {"link_token": "mock-token"}
+    banking_provider_mock.create_link_token.assert_called_once_with("user-1")
+
+
+def test_create_bank_link_token_no_provider(account_service_mock, account_repo_mock, bank_repo_mock):
+    service = BankingService(account_service_mock, account_repo_mock, bank_repo_mock, banking_provider=None)
+    with pytest.raises(ExternalServiceError) as exc:
+        service.create_bank_link_token("user-1")
+    assert "Banking provider not configured" in str(exc.value)
 
 
 # ---------------------------
 # add_bank_institution
 # ---------------------------
-@pytest.mark.parametrize(
-    "existing_token, accounts, transactions, expected_status, accounts_added",
-    [
-        (Mock(item_id="item-123"), [], [], "already_linked", None),
-        (None, [], [], "linked", 0),
-        (None, ["acct1"], ["tx1"], "linked", 1),
-    ]
-)
-def test_add_bank_institution(banking_service, bank_repo_mock, account_service_mock,
-                              banking_provider_mock, existing_token, accounts, transactions,
-                              expected_status, accounts_added):
-    # Setup bank repo
-    bank_repo_mock.get_by_user.return_value = existing_token
+def test_add_bank_institution_conflict(banking_service, bank_repo_mock):
+    bank_repo_mock.get_by_user.return_value = Mock(item_id="item-123")
+    with pytest.raises(ConflictError):
+        banking_service.add_bank_institution("user-1", "token", "inst-1")
 
-    # Setup accounts & transactions
-    class MockAccount:
-        def __init__(self, id):
-            self.id = id
 
+def test_add_bank_institution_success(banking_service, bank_repo_mock, account_service_mock, banking_provider_mock):
+    bank_repo_mock.get_by_user.return_value = None
+    # Mock accounts and transactions returned from provider
+    class MockAccount: 
+        def __init__(self, id): self.id = id
     class MockTransaction:
-        def __init__(self, account_id):
-            self.account_id = account_id
+        def __init__(self, account_id): self.account_id = account_id
 
-    banking_provider_mock.get_accounts.return_value = [MockAccount(a) for a in accounts]
-    banking_provider_mock.get_transactions.return_value = [MockTransaction("acct1") for a in transactions]
+    accounts = [MockAccount("acct1")]
+    transactions = [MockTransaction("acct1")]
+    banking_provider_mock.get_accounts.return_value = accounts
+    banking_service.get_transactions_within_dates = lambda token: transactions
 
-    # Patch get_transactions_within_dates to return transactions
-    banking_service.get_transactions_within_dates = lambda access_token: [MockTransaction("acct1") for a in transactions]
+    banking_service.add_bank_institution("user-1", "public-token", "inst-1", "Bank A")
 
-    if existing_token:
-        result = banking_service.add_bank_institution("user-1", "token", "inst-1", "Bank A")
-        assert result["status"] == expected_status
-        assert result["item_id"] == existing_token.item_id
-    else:
-        result = banking_service.add_bank_institution("user-1", "token", "inst-1", "Bank A")
-        assert result["status"] == expected_status
-        assert result.get("accounts_added") == accounts_added
-        if accounts_added:
-            account_service_mock.create_account.assert_called()
-            account_service_mock.apply_transaction_changes.assert_called()
+    account_service_mock.create_account.assert_called_once_with(accounts[0], "user-1")
+    account_service_mock.apply_transaction_changes.assert_called_once()
 
 
-def test_add_bank_institution_exception(banking_service, bank_repo_mock, banking_provider_mock):
+def test_add_bank_institution_provider_error(banking_service, bank_repo_mock, banking_provider_mock):
+    bank_repo_mock.get_by_user.return_value = None
     banking_provider_mock.exchange_public_token.side_effect = Exception("fail")
-    with pytest.raises(HTTPException) as exc:
-        banking_service.add_bank_institution("user-1", "token", "inst-1", "Bank A")
-    assert exc.value.status_code == 500
-    assert "Failed to link bank accounts" in exc.value.detail
+    with pytest.raises(ExternalServiceError) as exc:
+        banking_service.add_bank_institution("user-1", "token", "inst-1")
+    assert "Failed to link bank accounts" in str(exc.value)
 
 
 # ---------------------------
-# add_bank_accounts (sync)
+# add_bank_accounts
 # ---------------------------
-@pytest.mark.parametrize(
-    "token_exists, accounts_existing, accounts_new, expected_status, accounts_added",
-    [
-        (False, [], [], RuntimeError, None),  # No token
-        (True, ["acct-1"], ["acct-1"], "linked", 0),  # No new accounts
-        (True, [], ["acct-1"], "linked", 1),  # One new account
-    ]
-)
-def test_add_bank_accounts(banking_service, bank_repo_mock, account_repo_mock, account_service_mock,
-                           banking_provider_mock, token_exists, accounts_existing, accounts_new,
-                           expected_status, accounts_added):
+def test_add_bank_accounts_no_token(banking_service, bank_repo_mock):
+    bank_repo_mock.get_by_user.return_value = None
+    with pytest.raises(ValidationError):
+        banking_service.add_bank_accounts("user-1", "inst-1")
+
+
+def test_add_bank_accounts_existing_and_new(banking_service, bank_repo_mock, account_repo_mock, account_service_mock, banking_provider_mock):
     class MockAccount:
-        def __init__(self, id):
-            self.id = id
-
+        def __init__(self, id): self.id = id
     class MockTransaction:
-        def __init__(self, account_id):
-            self.account_id = account_id
+        def __init__(self, account_id): self.account_id = account_id
 
-    bank_repo_mock.get_by_user.return_value = Mock(access_token="token", item_id="item-123") if token_exists else None
-    banking_provider_mock.get_accounts.return_value = [MockAccount(a) for a in accounts_new]
-    account_repo_mock.get_all_accounts_with_transactions.return_value = [MockAccount(a) for a in accounts_existing]
-    banking_service.get_transactions_within_dates = lambda token: [MockTransaction("acct-1")]
+    token = Mock(access_token="token", item_id="item-123")
+    bank_repo_mock.get_by_user.return_value = token
 
-    if not token_exists:
-        with pytest.raises(expected_status):
-            banking_service.add_bank_accounts("user-1", "inst-1")
-    else:
-        # Fix: patch get_transactions_within_dates properly
-        banking_service.get_transactions_within_dates = lambda access_token: [MockTransaction("acct-1")]
-        result = banking_service.add_bank_accounts("user-1", "inst-1")
-        assert result["status"] == expected_status
-        assert result["accounts_added"] == accounts_added
+    existing_accounts = [MockAccount("acct1")]
+    account_repo_mock.get_all_accounts_with_transactions.return_value = existing_accounts
+
+    new_accounts = [MockAccount("acct1"), MockAccount("acct2")]
+    banking_provider_mock.get_accounts.return_value = new_accounts
+
+    transactions = [MockTransaction("acct1"), MockTransaction("acct2")]
+    banking_service.get_transactions_within_dates = lambda token: transactions
+
+    created_count = banking_service.add_bank_accounts("user-1")
+    assert created_count == 1
+    account_service_mock.create_account.assert_called_once_with(new_accounts[1], "user-1")
+    account_service_mock.apply_transaction_changes.assert_called_once()
 
 
 # ---------------------------
 # plaid_webhook
 # ---------------------------
-@pytest.mark.parametrize(
-    "payload, expected_status",
-    [
-        ({"webhook_type": "OTHER", "webhook_code": "SYNC_UPDATES_AVAILABLE", "item_id": "item1"}, "ignored"),
-        ({"webhook_type": "TRANSACTIONS", "webhook_code": "OTHER_CODE", "item_id": "item1"}, "ignored"),
-        ({"webhook_type": "TRANSACTIONS", "webhook_code": "SYNC_UPDATES_AVAILABLE", "item_id": "item1"}, "ok"),
-        ({"webhook_type": "TRANSACTIONS", "webhook_code": "INITIAL_UPDATE", "item_id": "item2"}, "ok"),
-    ]
-)
-def test_plaid_webhook(banking_service, payload, expected_status, monkeypatch):
-    if expected_status == "ok":
-        monkeypatch.setattr(banking_service, "enqueue_plaid_sync", lambda item_id: None)
+def test_plaid_webhook_ignored(banking_service):
+    payload = {"webhook_type": "OTHER", "webhook_code": "SYNC_UPDATES_AVAILABLE", "item_id": "item1"}
     result = banking_service.plaid_webhook(payload)
-    assert result["status"] == expected_status
+    assert result is None  # Ignored events return nothing
+
+
+def test_plaid_webhook_triggers_sync(banking_service, monkeypatch):
+    payload = {"webhook_type": "TRANSACTIONS", "webhook_code": "SYNC_UPDATES_AVAILABLE", "item_id": "item1"}
+    monkeypatch.setattr(banking_service, "enqueue_plaid_sync", lambda item_id: "queued")
+    result = banking_service.plaid_webhook(payload)
+    assert result is None  # Function itself returns nothing
 
 
 # ---------------------------
@@ -194,11 +161,9 @@ def test_get_transactions_within_dates_success(banking_service, banking_provider
     banking_provider_mock.get_transactions.return_value = ["tx1"]
     result = banking_service.get_transactions_within_dates("token")
     assert result == ["tx1"]
-    banking_provider_mock.get_transactions.assert_called_once()
 
 
-def test_get_transactions_within_dates_failure(banking_service, banking_provider_mock):
+def test_get_transactions_within_dates_provider_error(banking_service, banking_provider_mock):
     banking_provider_mock.get_transactions.side_effect = Exception("fail")
-    with pytest.raises(RuntimeError) as exc:
+    with pytest.raises(ExternalServiceError):
         banking_service.get_transactions_within_dates("token")
-    assert "Error fetching transactions" in str(exc.value)

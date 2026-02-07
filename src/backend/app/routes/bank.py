@@ -8,9 +8,8 @@ dependency injection for BankingService and user authentication.
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
-from app.logger import logger
 from app.dependencies import get_banking_service, get_current_user
 from app.models.exchange_token import ExchangeToken
 from app.services.banking_service import BankingService
@@ -32,24 +31,9 @@ def create_link_token(
 
     Returns:
         Dictionary containing the provider-generated link token.
-
-    Raises:
-        HTTPException: If token creation fails.
     """
-    try:
-        link_token = banking_service.create_bank_link_token(current_user.id)
-        logger.debug("Created bank link token for user %s", current_user.id)
-        return {"link_token": link_token}
-    except Exception as exc:
-        logger.exception(
-            "Failed to create link token for user %s: %s",
-            current_user.id,
-            exc
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create link token"
-        ) from exc
+    link_token = banking_service.create_bank_link_token(current_user.id)
+    return {"link_token": link_token}
 
 
 @router.post("/exchange-token", response_model=dict[str, str])
@@ -68,32 +52,14 @@ def exchange_token(
 
     Returns:
         Dictionary with a confirmation message.
-
-    Raises:
-        HTTPException: If token exchange or syncing fails.
     """
-    try:
-        banking_service.add_bank_institution(
-            user_id=current_user.id,
-            public_token=req.public_token,
-            institution_id=req.institution_id,
-            institution_name=req.institution_name,
-        )
-        logger.debug(
-            "Exchanged public token and synced accounts for user %s", current_user.id
-        )
-        return {"message": "Bank accounts synced"}
-    except Exception as exc:
-        logger.exception(
-            "Failed to exchange token for user %s with institution %s: %s",
-            current_user.id,
-            req.institution_id,
-            exc
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to exchange token"
-        ) from exc
+    banking_service.add_bank_institution(
+        user_id=current_user.id,
+        public_token=req.public_token,
+        institution_id=req.institution_id,
+        institution_name=req.institution_name,
+    )
+    return {"message": "Bank accounts synced"}
 
 
 @router.post("/get-accounts", response_model=dict[str, Any])
@@ -112,34 +78,18 @@ def get_accounts(
     Returns:
         Dictionary with account information.
     """
-    try:
-        accounts = banking_service.add_bank_accounts(
-            user_id=current_user.id,
-            institution_id=institution_id
-        )
-        logger.debug(
-            "Retrieved accounts for user %s (institution_id=%s)",
-            current_user.id,
-            institution_id,
-        )
-        return accounts
-    except Exception as exc:
-        logger.exception(
-            "Failed to retrieve accounts for user %s: %s",
-            current_user.id,
-            exc,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve accounts",
-        ) from exc
+    accounts = banking_service.add_bank_accounts(
+        user_id=current_user.id,
+        institution_id=institution_id
+    )
+    return {"status": "linked", "accounts_added": accounts}
 
 
 @router.post("/webhooks/plaid")
 async def plaid_webhook(
     payload: dict[str, Any],
     banking_service: BankingService = Depends(get_banking_service),
-) -> Any:
+) -> dict[str, str]:
     """
     Handle Plaid webhook events.
 
@@ -149,17 +99,6 @@ async def plaid_webhook(
 
     Returns:
         Response from the banking service webhook handler.
-
-    Raises:
-        HTTPException: If processing fails.
     """
-    try:
-        result = banking_service.plaid_webhook(payload)
-        logger.debug("Processed Plaid webhook: %s", payload.get("webhook_type"))
-        return result
-    except Exception as exc:
-        logger.exception("Failed to process Plaid webhook: %s", exc)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to process webhook"
-        ) from exc
+    banking_service.plaid_webhook(payload)
+    return {"status": "ok"}
