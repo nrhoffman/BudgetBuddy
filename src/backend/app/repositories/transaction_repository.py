@@ -70,6 +70,7 @@ class TransactionRepository:
             {
                 "id": tx.transaction_id,
                 "account_id": tx.account_id,
+                "account_type": tx.account_type,
                 "amount": abs(tx.amount),
                 "date": tx.date,
                 "balance_after": tx.balance_after,

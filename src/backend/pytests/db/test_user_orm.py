@@ -9,7 +9,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 
-from app.db.base import Base
 from app.db.user_orm import UserORM
 from app.models.user import UserRole
 
@@ -21,7 +20,7 @@ from app.models.user import UserRole
 def db_session():
     """Provide a SQLAlchemy session using in-memory SQLite."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(engine)
+    UserORM.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
     yield session

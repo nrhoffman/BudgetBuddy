@@ -67,7 +67,13 @@ export default function TransactionCard({ transaction, accountId }: Props) {
               </span>
               )}
           <div className="flex items-center gap-2">
-            <div className="font-medium">${transaction.amount}</div>
+            <div
+              className={`font-medium ${
+                transaction.direction === "in" ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              ${transaction.amount}
+            </div>
             <button
               onClick={() => setIsEditing(true)}
               className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"

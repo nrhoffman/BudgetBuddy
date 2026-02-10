@@ -1,5 +1,5 @@
 """
-Tests for the BankItemCursor ORM model.
+Tests for the BankItemCursorORM ORM model.
 
 Validates creation, nullable cursor handling, and default timestamps.
 """
@@ -10,8 +10,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.base import Base
-from app.db.bank_item_cursor_orm import BankItemCursor
+from app.db.bank_item_cursor_orm import BankItemCursorORM
 
 
 # -----------------------
@@ -21,7 +20,7 @@ from app.db.bank_item_cursor_orm import BankItemCursor
 def db_session():
     """Provide a SQLAlchemy session using in-memory SQLite."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(engine)
+    BankItemCursorORM.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
     yield session
@@ -49,8 +48,8 @@ def test_bank_item_cursor_creation(
     item_id,
     cursor,
 ):
-    """Ensure BankItemCursor rows persist correctly."""
-    bank_cursor = BankItemCursor(
+    """Ensure BankItemCursorORM rows persist correctly."""
+    bank_cursor = BankItemCursorORM(
         user_id=user_id,
         item_id=item_id,
         cursor=cursor,
@@ -60,7 +59,7 @@ def test_bank_item_cursor_creation(
     db_session.commit()
 
     saved = (
-        db_session.query(BankItemCursor)
+        db_session.query(BankItemCursorORM)
         .filter_by(user_id=user_id, item_id=item_id)
         .one()
     )
@@ -77,7 +76,7 @@ def test_bank_item_cursor_creation(
 # -----------------------
 def test_bank_item_cursor_updated_at_timezone(db_session):
     """updated_at should be set on insert (timezone-aware if supported)."""
-    bank_cursor = BankItemCursor(
+    bank_cursor = BankItemCursorORM(
         user_id="user_010",
         item_id="item_010",
         cursor="cursor_val",
@@ -87,7 +86,7 @@ def test_bank_item_cursor_updated_at_timezone(db_session):
     db_session.commit()
 
     saved = (
-        db_session.query(BankItemCursor)
+        db_session.query(BankItemCursorORM)
         .filter_by(user_id="user_010", item_id="item_010")
         .one()
     )

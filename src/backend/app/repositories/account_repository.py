@@ -216,7 +216,7 @@ class AccountRepository:
                 )
 
                 for tx in txs:
-                    running_balance += self.signed_amount(tx, account.type)
+                    running_balance += self.signed_amount(tx)
                     tx.balance_after = running_balance
 
                 account.balance = running_balance
@@ -270,33 +270,27 @@ class AccountRepository:
         )
         for tx in old_txs:
             tx.balance_after = running_balance
-            running_balance -= self.signed_amount(tx, account.type)
+            running_balance -= self.signed_amount(tx)
 
     # -----------------------
     # Utility methods
     # -----------------------
 
-    def signed_amount(self, tx: TransactionORM, account_type: str) -> Decimal:
+    def signed_amount(self, tx: TransactionORM) -> Decimal:
         """
-        Return the signed amount of a transaction.
+        Return the signed amount of a transaction based on its direction.
 
-        Income increases balance, expenses decrease it. Credit and
-        loan accounts invert this logic.
+        - 'in' transactions increase the balance.
+        - 'out' transactions decrease the balance.
 
         Args:
-            tx: Transaction ORM instance.
-            account_type: Account type.
+            tx (TransactionORM): Transaction ORM instance with a 'direction' property.
 
         Returns:
-            Signed transaction amount.
+            Decimal: Signed transaction amount.
         """
         amount = Decimal(tx.amount)
-        is_income = tx.category_primary in {"INCOME", "TRANSFER_IN"}
-
-        if account_type in {"credit", "loan"}:
-            is_income = not is_income
-
-        return amount if is_income else -amount
+        return amount if tx.direction == "in" else -amount
 
     # -----------------------
     # Query helpers

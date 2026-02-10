@@ -32,6 +32,8 @@ class TransactionORM(Base):
         ForeignKey("accounts.id"),
     )
 
+    account_type: Mapped[str] = mapped_column(String, nullable=False)
+
     account = relationship(
         "AccountORM",
         back_populates="transactions",
@@ -89,3 +91,27 @@ class TransactionORM(Base):
         String,
         nullable=True,
     )
+
+    @property
+    def direction(self) -> str:
+        """
+        Determine the flow of funds for this transaction relative to the account.
+
+        Returns:
+            str: "in" if the transaction increases the account balance,
+                "out" if the transaction decreases the account balance.
+
+        Notes:
+            - Transactions with category_primary of "INCOME" or "TRANSFER_IN" 
+            are considered incoming by default.
+            - For credit or loan accounts, the logic is inverted:
+            incoming transactions decrease the balance, and outgoing
+            transactions increase it.
+            - This property is intended for ORM-level calculations such as
+            balance re-computation and signed amount calculations.
+        """
+
+        is_incoming = self.category_primary in {"INCOME", "TRANSFER_IN"}
+        if self.account_type in {"credit", "loan"}:
+            is_incoming = not is_incoming
+        return "in" if is_incoming else "out"

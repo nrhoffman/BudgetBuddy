@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.base import Base
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.models.account import AccountType
@@ -24,7 +23,8 @@ from app.models.account import AccountType
 def db_session():
     """Provide a SQLAlchemy session using in-memory SQLite."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(engine)
+    AccountORM.__table__.create(engine)
+    TransactionORM.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
     yield session
@@ -140,6 +140,7 @@ def test_transaction_orm_creation(
     transaction = TransactionORM(
         id=txn_id,
         account_id=account_id,
+        account_type=account.type,  # ✅ Pass the account type
         amount=amount,
         balance_after=balance_after,
         date=date,
@@ -164,6 +165,7 @@ def test_transaction_orm_creation(
 
     assert saved.id == txn_id
     assert saved.account_id == account_id
+    assert saved.account_type == account.type
     assert saved.amount == amount
     assert saved.balance_after == balance_after
     assert normalize_datetime(saved.date) == normalize_datetime(date)
@@ -197,6 +199,7 @@ def test_transaction_orm_default_date(db_session):
     transaction = TransactionORM(
         id="txn_010",
         account_id="acc_010",
+        account_type=account.type,  # ✅ Pass the account type
         amount=Decimal("75.00"),
         balance_after=Decimal("575.00"),
     )

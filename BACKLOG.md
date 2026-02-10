@@ -1,23 +1,28 @@
 # Project Backlog
 
 ## To Do
+- [ ] Have a way to get raw data first before hitting plaid
+- [ ] Need an options to delete all user data including raw
+- [ ] If user is adding an account back, get raw data from database first
 - [ ] Replace the shit popup windows
-- [ ] Make income green and other's red
 - [ ] Verify if link token needs to be created upon each page refresh
 - [ ] Encrypt public tokens
 - [ ] getting snapshot occurs too often
 - [ ] Auth currently goes inactive when active (jwt token as well)
 - [ ] Verify backend processes are multi-user
-- [ ] Check if transactions can do time and not just date - make it so time is used
-- [ ] Have a raw data table
-- [ ] Currently modified syncs rewrites Manually modified categories and confidence
 - [ ] Verify balances work correctly credit/loan vs others
-- [ ] Optionally set the description as a pattern in a transaction_rule table
 
 ## In Progress
-- [ ] Have errors go to frontend and display
+- [ ] Add APR/Interest to frontend
+- [ ] Optionally set the description as a pattern in a transaction_rule table
+- [ ] Currently modified syncs rewrites Manually modified categories and confidence
 
 ## Done
+- [x] Don't store raw data with same item_id and cursor
+- [x] Add APR/interest to backend
+- [x] Add whether transaction is income or expense going into database
+- [x] Make income green and other's red
+- [x] Make a new raw table for raw plaid data
 - [x] Refactor - Keep exceptions/logging to services/routes/tasks
 - [x] Need to be able to add accounts for institutions already added
 - [x] Split up pages into their own files on dashboard
@@ -40,7 +45,6 @@
 
 ## Ideas
 - Something to look at - Do unselected bank accounts get synced through plaid?
-- Add APR/interest
 - Show income a month and year - break down by sources
 - Show spending trends graph by category
 - Make a budget

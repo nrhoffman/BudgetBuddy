@@ -32,6 +32,7 @@ def orm_to_domain_account(orm: AccountORM) -> Account:
         initial_balance=Decimal(orm.initial_balance),
         initial_import_completed_at=orm.initial_import_completed_at,
         transactions=[orm_to_domain_transaction(tx) for tx in orm.transactions],
+        apr=orm.apr,
     )
 
 
@@ -48,6 +49,7 @@ def orm_to_domain_transaction(orm: TransactionORM) -> Transaction:
     return Transaction(
         transaction_id=orm.id,
         account_id=orm.account_id,
+        account_type=orm.account_type,
         amount=Decimal(orm.amount),
         date=orm.date,
         balance_after=orm.balance_after,
