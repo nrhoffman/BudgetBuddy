@@ -66,14 +66,19 @@ def test_get_accounts(client, mock_account_service, accounts, service_return):
 )
 def test_update_account(client, mock_account_service, account_id, account_name):
     mock_account_service.update_account.return_value = None
-    response = client.post(f"/api/accounts/update-account/{account_id}/{account_name}")
+    response = client.post(
+        f"/api/accounts/update-account/{account_id}",
+        json={"account_name": account_name},
+    )
     assert response.status_code == 200
     assert response.json() == {"message": "Account updated successfully"}
-    mock_account_service.update_account.assert_called_once_with(
-        account_id=account_id,
-        user_id="user_123",
-        account_name=account_name
-    )
+    mock_account_service.update_account.assert_called_once()
+
+    call_args = mock_account_service.update_account.call_args.kwargs
+    assert call_args["account_id"] == account_id
+    assert call_args["user_id"] == "user_123"
+    assert call_args["payload"].account_name == account_name
+
     mock_account_service.update_account.reset_mock()
 
 

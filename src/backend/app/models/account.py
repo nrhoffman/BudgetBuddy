@@ -52,6 +52,19 @@ class AccountSubType(str, enum.Enum):
     OTHER = "other"
 
 
+class UpdateAccount(BaseModel):
+    """
+    Schema for updating Account Name and APR.
+
+    Attributes:
+        account_name (Optional[str]): Account Name
+        apr (Optional[Decimal]): APR/Interest of the account
+    """
+
+    account_name: Optional[str] = None
+    apr: Optional[Decimal] = None
+
+
 class Account(BaseModel):
     """Domain model for a bank account."""
     id: str

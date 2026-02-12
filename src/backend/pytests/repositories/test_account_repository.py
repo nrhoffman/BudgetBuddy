@@ -4,7 +4,7 @@ from decimal import Decimal
 from datetime import datetime, date
 
 from app.repositories.account_repository import AccountRepository
-from app.models.account import Account
+from app.models.account import Account, UpdateAccount
 from app.db.transaction_orm import TransactionORM
 from app.db.account_orm import AccountORM
 
@@ -81,7 +81,9 @@ def test_update_account_sets_fields(mock_session, account_name, balance, sample_
     orm = MagicMock(spec=AccountORM)
     mock_session.query.return_value.filter.return_value.first.return_value = orm
     repo = AccountRepository(mock_session)
-    repo.update_account("acc_1", "user_1", account_name=account_name, balance=balance)
+    payload = UpdateAccount(account_name=account_name) if account_name is not None else UpdateAccount()
+    repo.update_account("acc_1", "user_1", payload=payload, balance=balance)
+
     if account_name is not None:
         assert orm.name == account_name
     if balance is not None:
@@ -92,7 +94,12 @@ def test_update_account_not_found_raises(mock_session):
     mock_session.query.return_value.filter.return_value.first.return_value = None
     repo = AccountRepository(mock_session)
     with pytest.raises(ValueError):
-        repo.update_account("acc_1", "user_1", account_name="X")
+        repo.update_account(
+            "acc_1",
+            "user_1",
+            payload=UpdateAccount(account_name="X"),
+        )
+
 
 
 def test_delete_account_calls_delete(mock_session):

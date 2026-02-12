@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from unittest.mock import MagicMock
 
 from app.services.account_service import AccountService
-from app.models.account import Account
+from app.models.account import Account, UpdateAccount
 from app.models.transaction import Transaction, UpdateTransaction
 from app.exceptions import DatabaseError, NotFoundError, ValidationError
 
@@ -104,38 +104,46 @@ def test_get_account(account_service, account_repo_mock, sample_account, repo_re
 # update_account
 # ---------------------------
 
+
 @pytest.mark.parametrize(
-    "account_name,balance,side_effect,expected_exception",
+    "payload,balance,side_effect,expected_exception",
     [
-        ("New Name", None, None, None),
+        (UpdateAccount(account_name="New Name"), None, None, None),
+        (UpdateAccount(apr=3.5), None, None, None),
         (None, 200.0, None, None),
-        ("New Name", 200.0, None, None),
-        (None, None, None, ValidationError),
-        ("Name", None, ValueError("not found"), NotFoundError),
-        ("Name", None, Exception("fail"), DatabaseError),
+        (UpdateAccount(account_name="New Name", apr=3.5), 200.0, None, None),
+        (UpdateAccount(), None, None, ValidationError),
+        (UpdateAccount(account_name="Name"), None, ValueError("not found"), NotFoundError),
+        (UpdateAccount(account_name="Name"), None, Exception("fail"), DatabaseError),
     ],
 )
-def test_update_account(account_service, account_repo_mock, account_name, balance, side_effect, expected_exception):
+def test_update_account(
+    account_service,
+    account_repo_mock,
+    payload,
+    balance,
+    side_effect,
+    expected_exception,
+):
     account_repo_mock.update_account.side_effect = side_effect
 
     if expected_exception:
         with pytest.raises(expected_exception):
             account_service.update_account(
-                "acc1",
-                "user1",
-                account_name=account_name,
+                account_id="acc1",
+                user_id="user1",
+                payload=payload,
                 balance=balance,
             )
     else:
-        assert (
-            account_service.update_account(
-                "acc1",
-                "user1",
-                account_name=account_name,
-                balance=balance,
-            )
-            is None
+        result = account_service.update_account(
+            account_id="acc1",
+            user_id="user1",
+            payload=payload,
+            balance=balance,
         )
+        assert result is None
+        account_repo_mock.update_account.assert_called_once()
 
 
 # ---------------------------

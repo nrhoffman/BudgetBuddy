@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.mappers.account_mapper import orm_to_domain_account
-from app.models.account import Account
+from app.models.account import Account, UpdateAccount
 
 
 class AccountRepository:
@@ -93,7 +93,7 @@ class AccountRepository:
         self,
         account_id: str,
         user_id: str,
-        account_name: Optional[str] = None,
+        payload: Optional[UpdateAccount] = None,
         balance: Optional[float] = None,
     ) -> None:
         """
@@ -104,6 +104,7 @@ class AccountRepository:
             user_id: Identifier of the owning user.
             account_name: Optional new account name.
             balance: Optional new account balance.
+            apr: Optional APR/Interest of the account
 
         Raises:
             ValueError: If the account does not exist.
@@ -122,10 +123,12 @@ class AccountRepository:
                 f"Account {account_id} not found for user {user_id}"
             )
 
-        if account_name is not None:
-            orm.name = account_name
+        if payload.account_name is not None:
+            orm.name = payload.account_name
         if balance is not None:
             orm.balance = balance
+        if payload.apr is not None:
+            orm.apr = payload.apr
 
     def delete_account(self, account_id: str, user_id: str) -> None:
         """

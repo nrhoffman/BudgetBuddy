@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, computed_field
+from pydantic import BaseModel, Field, field_validator
 from app.logger import logger
 
 
@@ -88,24 +88,3 @@ class Transaction(BaseModel):
             logger.debug("Validation failed: transaction amount cannot be zero")
             raise ValueError("Transaction amount cannot be zero")
         return value
-
-    @computed_field
-    @property
-    def direction(self) -> str:
-        """
-        Returns the flow of funds relative to the account.
-
-        - "in" → money into the account (deposits, refunds, credit payments)
-        - "out" → money leaving the account (purchases, withdrawals)
-        
-        Notes:
-            For credit and loan accounts, the logic is inverted:
-            an "incoming" transaction decreases balance, while "outgoing"
-            increases it, so we flip the sign for display purposes.
-        """
-        is_incoming = self.category_primary in {"INCOME", "TRANSFER_IN"}
-
-        if self.account_type in {"credit", "loan"}:
-            is_incoming = not is_incoming
-
-        return "in" if is_incoming else "out"

@@ -14,4 +14,6 @@ export type Account = {
   balance: number;
   /** List of transactions for this account */
   transactions: Transaction[];
+  /** APR/Interest of the account */
+  apr: number | null;
 };

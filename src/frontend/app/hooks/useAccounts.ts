@@ -55,23 +55,30 @@ export function useAccounts() {
     }
   };
 
-  const editAccount = async (accountId: string, newName: string) => {
+  const editAccount = async (accountId: string, newName: string, apr: number | null) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     try {
       setEditingAccount(accountId);
       const res = await fetch(
-        `/api/accounts/update-account/${accountId}/${encodeURIComponent(newName)}`,
+        `/api/accounts/update-account/${accountId}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            account_name: newName,
+            apr: apr,
+          }),
         }
       );
 
       if (res.ok) {
         setAccounts(prev =>
-          prev.map(acc => (acc.id === accountId ? { ...acc, name: newName } : acc))
+          prev.map(acc => (acc.id === accountId ? { ...acc, name: newName, apr: apr } : acc))
         );
       } else {
         const data = await res.json();

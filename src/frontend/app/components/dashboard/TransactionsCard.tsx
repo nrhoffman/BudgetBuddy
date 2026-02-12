@@ -46,6 +46,16 @@ export default function TransactionCard({ transaction, accountId }: Props) {
     setIsEditing(false);
   };
 
+  const getTransactionColor = (tx: Transaction, accountType: string) => {
+    if (accountType === "credit" || accountType === "loan") {
+      return tx.category_primary === "TRANSFER_OUT" ? "text-green-600" : "text-red-600";
+    } else {
+      return tx.category_primary === "INCOME" || tx.category_primary === "TRANSFER_IN"
+        ? "text-green-600"
+        : "text-red-600";
+    }
+  };
+
   return (
     <li className="p-3 border rounded relative">
       {!isEditing ? (
@@ -67,11 +77,7 @@ export default function TransactionCard({ transaction, accountId }: Props) {
               </span>
               )}
           <div className="flex items-center gap-2">
-            <div
-              className={`font-medium ${
-                transaction.direction === "in" ? "text-green-600" : "text-red-600"
-              }`}
-            >
+            <div className={`font-medium ${getTransactionColor(transaction, transaction.account_type)}`}>
               ${transaction.amount}
             </div>
             <button

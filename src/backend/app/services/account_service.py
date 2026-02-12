@@ -13,7 +13,7 @@ from typing import Optional
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.logger import logger
-from app.models.account import Account
+from app.models.account import Account, UpdateAccount
 from app.models.transaction import Transaction, UpdateTransaction
 from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
@@ -121,7 +121,7 @@ class AccountService:
         self,
         account_id: str,
         user_id: str,
-        account_name: Optional[str] = None,
+        payload: Optional[UpdateAccount] = None,
         balance: Optional[float] = None,
     ) -> None:
         """
@@ -130,7 +130,7 @@ class AccountService:
         Args:
             account_id (str): Identifier of the account.
             user_id (str): Identifier of the owning user.
-            account_name (Optional[str]): New account name.
+            payload (UpdateAccount): Partial account update payload.
             balance (Optional[float]): Updated balance.
 
         Raises:
@@ -139,15 +139,18 @@ class AccountService:
             DatabaseError: If the update fails.
         """
 
-        if account_name is None and balance is None:
+        account_name = payload.account_name if payload else None
+        apr = payload.apr if payload else None
+
+        if all(value is None for value in (account_name, balance, apr)):
             raise ValidationError("No fields provided to update")
 
         try:
             self.account_repo.update_account(
                 account_id=account_id,
                 user_id=user_id,
-                account_name=account_name,
-                balance=balance
+                payload=payload,
+                balance=balance,
             )
             logger.info(
                 "Account updated: account_id=%s, user_id=%s",

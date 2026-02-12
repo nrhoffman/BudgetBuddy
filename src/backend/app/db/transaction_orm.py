@@ -95,23 +95,25 @@ class TransactionORM(Base):
     @property
     def direction(self) -> str:
         """
-        Determine the flow of funds for this transaction relative to the account.
+        Determine cash flow direction relative to the user.
 
         Returns:
-            str: "in" if the transaction increases the account balance,
-                "out" if the transaction decreases the account balance.
+            str: "in" if money is received by the user,
+                "out" if money leaves the user.
 
-        Notes:
-            - Transactions with category_primary of "INCOME" or "TRANSFER_IN" 
-            are considered incoming by default.
-            - For credit or loan accounts, the logic is inverted:
-            incoming transactions decrease the balance, and outgoing
-            transactions increase it.
-            - This property is intended for ORM-level calculations such as
-            balance re-computation and signed amount calculations.
+        Rules:
+            Depository / checking/savings:
+                INCOME, TRANSFER_IN  -> "in"
+                EXPENSE, TRANSFER_OUT -> "out"
+            Credit/Loan:
+                INCOME, TRANSFER_IN  -> "out"  (payment reduces balance owed)
+                EXPENSE, TRANSFER_OUT -> "in"  (charges increase balance owed)
         """
 
-        is_incoming = self.category_primary in {"INCOME", "TRANSFER_IN"}
         if self.account_type in {"credit", "loan"}:
-            is_incoming = not is_incoming
-        return "in" if is_incoming else "out"
+            if self.category_primary in {"TRANSFER_OUT"}:
+                return "out"
+            return "in"
+        if self.category_primary in {"INCOME", "TRANSFER_IN"}:
+            return "in"
+        return "out"

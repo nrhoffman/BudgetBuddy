@@ -62,4 +62,4 @@ class AccountORM(Base):
         cascade="all, delete-orphan",
     )
 
-    apr: Mapped[Decimal] = mapped_column(Numeric(2,2), nullable=True)
+    apr: Mapped[Decimal] = mapped_column(Numeric(4,2), nullable=True)
