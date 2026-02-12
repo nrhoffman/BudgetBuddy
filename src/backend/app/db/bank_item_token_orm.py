@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
-class BankItemToken(Base):
+class BankItemTokenORM(Base):
     """
     ORM model representing a bank item access token.
 

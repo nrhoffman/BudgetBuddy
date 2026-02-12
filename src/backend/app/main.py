@@ -45,7 +45,7 @@ async def validation_handler(_request: Request, exc: ValidationError):
         JSONResponse: HTTP 400 response with error details.
     """
 
-    return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return JSONResponse(status_code=400, content=error_response(exc))
 
 
 @app.exception_handler(NotFoundError)
@@ -63,7 +63,7 @@ async def not_found_handler(_request: Request, exc: NotFoundError):
         JSONResponse: HTTP 404 response with error details.
     """
 
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
+    return JSONResponse(status_code=404, content=error_response(exc))
 
 
 @app.exception_handler(ConflictError)
@@ -81,7 +81,7 @@ async def conflict_handler(_request: Request, exc: ConflictError):
         JSONResponse: HTTP 409 response with error details.
     """
 
-    return JSONResponse(status_code=409, content={"detail": str(exc)})
+    return JSONResponse(status_code=409, content=error_response(exc))
 
 
 @app.exception_handler(AuthenticationError)
@@ -99,7 +99,7 @@ async def auth_handler(_request: Request, exc: AuthenticationError):
         JSONResponse: HTTP 401 response with error details.
     """
 
-    return JSONResponse(status_code=401, content={"detail": str(exc)})
+    return JSONResponse(status_code=401, content=error_response(exc))
 
 
 @app.exception_handler(AuthorizationError)
@@ -117,7 +117,7 @@ async def authorization_handler(_request: Request, exc: AuthorizationError):
         JSONResponse: HTTP 403 response with error details.
     """
 
-    return JSONResponse(status_code=403, content={"detail": str(exc)})
+    return JSONResponse(status_code=403, content=error_response(exc))
 
 
 @app.exception_handler(DatabaseError)
@@ -137,7 +137,7 @@ async def database_handler(_request: Request, exc: DatabaseError):
 
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "extra": getattr(exc, "details", None)},
+        content=error_response(exc, details=getattr(exc, "details", None)),
     )
 
 
@@ -158,26 +158,8 @@ async def banking_handler(_request: Request, exc: BankingProviderError):
 
     return JSONResponse(
         status_code=502,  # Bad gateway for external provider errors
-        content={"detail": str(exc), "extra": getattr(exc, "details", None)},
+        content=error_response(exc, details=getattr(exc, "details", None)),
     )
-
-
-@app.exception_handler(AppError)
-async def generic_app_error(_request: Request, exc: AppError):
-    """
-    Handle generic AppError exceptions.
-
-    Returns a 500 Internal Server Error response for unexpected application errors.
-
-    Args:
-        _request (Request): FastAPI request object (unused).
-        exc (AppError): The raised application error.
-
-    Returns:
-        JSONResponse: HTTP 500 response with error details.
-    """
-
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
 @app.exception_handler(ExternalServiceError)
@@ -198,5 +180,49 @@ async def external_service_handler(_request: Request, exc: ExternalServiceError)
 
     return JSONResponse(
         status_code=502,
-        content={"detail": str(exc), "info": exc.details},
+        content=error_response(exc, details=exc.details),
     )
+
+
+@app.exception_handler(AppError)
+async def generic_app_error(_request: Request, exc: AppError):
+    """
+    Handle generic AppError exceptions.
+
+    Returns a 500 Internal Server Error response for unexpected application errors.
+
+    Args:
+        _request (Request): FastAPI request object (unused).
+        exc (AppError): The raised application error.
+
+    Returns:
+        JSONResponse: HTTP 500 response with error details.
+    """
+
+    return JSONResponse(status_code=500, content=error_response(exc))
+
+
+def error_response(
+    exc: Exception,
+    *,
+    details: object | None = None
+) -> dict:
+    """
+    Build a canonical error response payload.
+
+    Shape:
+    {
+        "error": {
+            "type": "<ExceptionClass>",
+            "message": "<human-readable message>",
+            "details": <optional structured data>
+        }
+    }
+    """
+    return {
+        "error": {
+            "type": exc.__class__.__name__,
+            "message": str(exc),
+            "details": details,
+        }
+    }

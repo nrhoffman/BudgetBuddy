@@ -6,6 +6,8 @@ export type Transaction = {
   id: string;
   /** ID of the account this transaction belongs to */
   account_id: string;
+  /** Type of the account this transaction belongs to */
+  account_type: string;
   /** Transaction amount */
   amount: number;
   /** Transaction date in ISO format */
@@ -26,4 +28,6 @@ export type Transaction = {
   iso_currency_code?: string;
   /** Unofficial currency code (optional) */
   unofficial_currency_code?: string;
+  /** Direction of the transaction (in/out) */
+  direction: string;
 };

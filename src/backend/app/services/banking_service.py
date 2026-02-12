@@ -12,18 +12,19 @@ from typing import Optional, Any
 
 from app.logger import logger
 from app.tasks.plaid import sync_transactions
-from app.interfaces.banking_provider import BankingProvider
+from app.mappers.transaction_mapper import map_plaid_transaction, sort_transactions
 from app.models.exchange_token import ExchangeToken
-from app.repositories.bank_repository import BankRepository
-from app.repositories.account_repository import AccountRepository
-from app.services.account_service import AccountService
+from app.models.account import Account, parse_account_type, parse_account_subtype
 from app.models.transaction import Transaction
+from app.models.raw_provider_data import RawProviderData, Identity
+from app.models.banking_service_deps import BankingServiceDependencies
 from app.exceptions import (
     ConflictError,
     DatabaseError,
     ValidationError,
     ExternalServiceError,
 )
+from app.mappers.account_index import AccountIndex
 
 
 class BankingService:
@@ -35,17 +36,8 @@ class BankingService:
     and internal repositories and services.
     """
 
-    def __init__(
-        self,
-        account_service: AccountService,
-        account_repo: AccountRepository,
-        bank_repo: BankRepository,
-        banking_provider: Optional[BankingProvider] = None,
-    ):
-        self.account_service = account_service
-        self.account_repo = account_repo
-        self.bank_repo = bank_repo
-        self.banking_provider = banking_provider
+    def __init__(self, deps: BankingServiceDependencies):
+        self.banking_deps = deps
 
     # ---------------------------
     # Bank link token
@@ -64,13 +56,13 @@ class BankingService:
             ExternalServiceError: If the banking provider is not configured
                 or token creation fails.
         """
-        if not self.banking_provider:
+        if not self.banking_deps.banking_provider:
             logger.error("Banking provider not configured")
             raise ExternalServiceError("Banking provider not configured")
 
         try:
             logger.info("Creating bank link token for user %s", user_id)
-            return self.banking_provider.create_link_token(user_id)
+            return self.banking_deps.banking_provider.create_link_token(user_id)
         except Exception as exc:
             logger.exception("Failed to create link token for user %s", user_id)
             raise ExternalServiceError("Failed to create link token") from exc
@@ -102,55 +94,106 @@ class BankingService:
             ConflictError: If the institution is already linked.
             ExternalServiceError: If provider interaction or syncing fails.
         """
-        if not self.banking_provider:
+        if not self.banking_deps.banking_provider:
             logger.error("Banking provider not configured")
             raise ExternalServiceError("Banking provider not configured")
 
         try:
-            exchange_result = self.banking_provider.exchange_public_token(public_token)
+            exchange_result = (
+                self.banking_deps.banking_provider.exchange_public_token(
+                    public_token
+                )
+            )
 
             # Check if the institution is already linked
-            existing_token = self.bank_repo.get_by_user(user_id, institution_id)
-            if existing_token:
+            if self.banking_deps.bank_repo.get_by_user(user_id, institution_id):
                 raise ConflictError("Bank institution already linked")
 
-            exchange_token = ExchangeToken(
-                public_token=exchange_result.access_token,
-                institution_id=institution_id,
-                institution_name=institution_name,
-            )
-
-            self.bank_repo.save_token(
+            self.banking_deps.bank_repo.save_token(
                 user_id=user_id,
-                provider="Plaid",
+                provider="plaid",
                 item_id=exchange_result.item_id,
-                exchange_token=exchange_token,
+                exchange_token=ExchangeToken(
+                    public_token=exchange_result.access_token,
+                    institution_id=institution_id,
+                    institution_name=institution_name,
+                ),
             )
 
-            accounts = self.banking_provider.get_accounts(
+            acc_res = self.banking_deps.banking_provider.get_accounts(
                 exchange_result.access_token
-            ) or []
-            if not accounts:
-                logger.info("No accounts returned from provider for user %s", user_id)
+            )
+            if not acc_res:
+                logger.info(
+                    "No accounts returned from provider for user %s",
+                    user_id
+                )
                 return
 
-            transactions = self.get_transactions_within_dates(
+            self.banking_deps.raw_provider_repo.save(
+                RawProviderData(
+                    provider="plaid",
+                    endpoint="accounts_balance_get",
+                    payload=acc_res.to_dict(),
+                    identity=Identity(
+                        user_id=user_id,
+                        item_id=exchange_result.item_id
+                    )
+                )
+            )
+
+            accounts = [
+                Account(
+                    id=acc.account_id,
+                    name=acc.name,
+                    type=parse_account_type(acc.type),
+                    subtype=parse_account_subtype(acc.subtype),
+                    balance=acc.balances.current,
+                )
+                for acc in acc_res.accounts
+            ]
+
+            account_index = AccountIndex(accounts)
+
+            # Get's first 30 days
+            txn_res = self.get_transactions_within_dates(
                 exchange_result.access_token
             )
 
+            self.banking_deps.raw_provider_repo.save(
+                RawProviderData(
+                    provider="plaid",
+                    endpoint="transactions_get",
+                    payload=txn_res.to_dict(),
+                    identity=Identity(
+                        user_id=user_id,
+                        item_id=exchange_result.item_id
+                    )
+                )
+            )
+
+            transactions = sort_transactions([
+                map_plaid_transaction(
+                    txn,
+                    account_type=account_index.type_for(txn.account_id)
+                ) for txn in txn_res.transactions
+            ])
+
             for account in accounts:
-                self.account_service.create_account(account, user_id)
+                self.banking_deps.account_service.create_account(account, user_id)
                 account_txns = [
                     tx for tx in transactions if tx.account_id == account.id
                 ]
-                self.account_service.apply_transaction_changes(
+                self.banking_deps.account_service.apply_transaction_changes(
                     user_id=user_id, added=account_txns, modified=[], removed=[]
                 )
 
-            sync_result = self.banking_provider.get_transactions_sync(
-                exchange_result.access_token
+            # Gets initial cursor and saves it
+            sync_result = self.banking_deps.banking_provider.get_transactions_sync(
+                exchange_result.access_token,
+                accounts
             )
-            self.bank_repo.save_cursor(
+            self.banking_deps.bank_repo.save_cursor(
                 user_id=user_id,
                 item_id=exchange_result.item_id,
                 cursor=sync_result.get("next_cursor")
@@ -181,12 +224,12 @@ class BankingService:
             DatabaseError: If retrieving the bank token fails.
             ExternalServiceError: If provider synchronization fails.
         """
-        if not self.banking_provider:
+        if not self.banking_deps.banking_provider:
             logger.error("Banking provider not configured")
             raise ExternalServiceError("Banking provider not configured")
 
         try:
-            token = self.bank_repo.get_by_user(user_id, institution_id)
+            token = self.banking_deps.bank_repo.get_by_user(user_id, institution_id)
         except Exception as exc:
             logger.exception(
                 "Database error retrieving bank token for user %s",
@@ -197,30 +240,67 @@ class BankingService:
         if not token:
             raise ValidationError("No bank token found for user")
         try:
-            new_accounts = self.banking_provider.get_accounts(
+            new_acc_res = self.banking_deps.banking_provider.get_accounts(
                 token.access_token
-            ) or []
-
-            existing_accounts = self.account_repo.get_all_accounts_with_transactions(
-                user_id
             )
-            existing_ids = {acct.id for acct in existing_accounts}
+
+            self.banking_deps.raw_provider_repo.save(
+                RawProviderData(
+                    provider="plaid",
+                    endpoint="accounts_balance_get",
+                    payload=new_acc_res.to_dict(),
+                    identity=Identity(user_id=user_id, item_id=token.item_id)
+                )
+            )
+
+            existing_ids = {acct.id for acct in (
+                self.banking_deps.account_repo.get_all_accounts_with_transactions(
+                    user_id
+                )
+            )}
+
             accounts_to_create = [
-                acct for acct in new_accounts if acct.id not in existing_ids
+                Account(
+                    id=acc.account_id,
+                    name=acc.name,
+                    type=parse_account_type(acc.type),
+                    subtype=parse_account_subtype(acc.subtype),
+                    balance=acc.balances.current,
+                )
+                for acc in new_acc_res.accounts
+                if acc.account_id not in existing_ids
             ]
 
             if not accounts_to_create:
                 return 0
 
-            transactions = self.get_transactions_within_dates(token.access_token)
+            account_index = AccountIndex(accounts_to_create)
+
+            new_txns_res = self.get_transactions_within_dates(token.access_token)
+            transactions = sort_transactions([
+                map_plaid_transaction(
+                    txn,
+                    account_index.type_for(txn.account_id)
+                ) for txn in new_txns_res.transactions
+            ])
+
+            self.banking_deps.raw_provider_repo.save(
+                RawProviderData(
+                    provider="plaid",
+                    endpoint="transactions_get",
+                    payload=new_txns_res.to_dict(),
+                    identity=Identity(user_id=user_id, item_id=token.item_id)
+                )
+            )
+
             created_count = 0
 
             for account in accounts_to_create:
-                self.account_service.create_account(account, user_id)
+                self.banking_deps.account_service.create_account(account, user_id)
                 account_txns = [
                     tx for tx in transactions if tx.account_id == account.id
                 ]
-                self.account_service.apply_transaction_changes(
+                self.banking_deps.account_service.apply_transaction_changes(
                     user_id=user_id, added=account_txns, modified=[], removed=[]
                 )
                 created_count += 1
@@ -243,6 +323,14 @@ class BankingService:
             payload (dict[str, Any]): Raw webhook payload from the provider.
         """
         logger.info("Received Plaid webhook", extra={"payload": payload})
+
+        webhook_res_model = RawProviderData(
+            provider="plaid",
+            endpoint="webhook",
+            payload=payload,
+        )
+
+        self.banking_deps.raw_provider_repo.save(webhook_res_model)
 
         webhook_type = payload.get("webhook_type")
         webhook_code = payload.get("webhook_code")
@@ -287,19 +375,19 @@ class BankingService:
             ExternalServiceError: If the provider is not configured or
                 transaction retrieval fails.
         """
-        if not self.banking_provider:
+        if not self.banking_deps.banking_provider:
             logger.error("Banking provider not configured")
             raise ExternalServiceError("Banking provider not configured")
         try:
             end_date = datetime.today().date()
             start_date = end_date - timedelta(days=90)
 
-            transactions = self.banking_provider.get_transactions(
+            transactions = self.banking_deps.banking_provider.get_transactions(
                 access_token=access_token,
                 start_date=start_date,
                 end_date=end_date
             )
-            return transactions or []
+            return transactions
         except Exception as exc:
             logger.exception("Failed to fetch transactions for access_token")
             raise ExternalServiceError("Failed to fetch transactions") from exc

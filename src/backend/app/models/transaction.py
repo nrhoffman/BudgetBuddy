@@ -34,6 +34,7 @@ class Transaction(BaseModel):
     Attributes:
         transaction_id (str): Unique transaction ID.
         account_id (str): ID of the associated account.
+        account_type (str): Type of account the transaction is associated with
         amount (Decimal): Transaction amount; must not be zero.
         date (datetime): Transaction timestamp.
         balance_after (Optional[Decimal]): Account balance after transaction.
@@ -49,6 +50,7 @@ class Transaction(BaseModel):
 
     transaction_id: str = Field(..., alias="id")
     account_id: str
+    account_type: Optional[str] = None
     amount: Decimal
     date: datetime
     balance_after: Optional[Decimal] = None

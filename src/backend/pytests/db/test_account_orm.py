@@ -5,7 +5,6 @@ from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.base import Base
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.models.account import AccountSubType, AccountType
@@ -17,7 +16,8 @@ from app.models.account import AccountSubType, AccountType
 @pytest.fixture
 def db_session():
     engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(engine)
+    AccountORM.__table__.create(engine)
+    TransactionORM.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
     yield session
@@ -126,6 +126,7 @@ def test_account_transactions_relationship(db_session):
     transaction = TransactionORM(
         id="txn_001",
         account_id=account.id,
+        account_type=account.type,  # ✅ Fix: pass account type
         amount=Decimal("100.00"),
         balance_after=Decimal("5100.00"),
         date=datetime(
@@ -155,6 +156,7 @@ def test_account_transactions_relationship(db_session):
 
     saved_txn = saved_account.transactions[0]
     assert saved_txn.id == "txn_001"
+    assert saved_txn.account_type == account.type  # ✅ Check account_type
     assert saved_txn.amount == Decimal("100.00")
     assert saved_txn.balance_after == Decimal("5100.00")
     assert saved_txn.name == "Deposit"

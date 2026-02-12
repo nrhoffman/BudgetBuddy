@@ -52,6 +52,19 @@ class AccountSubType(str, enum.Enum):
     OTHER = "other"
 
 
+class UpdateAccount(BaseModel):
+    """
+    Schema for updating Account Name and APR.
+
+    Attributes:
+        account_name (Optional[str]): Account Name
+        apr (Optional[Decimal]): APR/Interest of the account
+    """
+
+    account_name: Optional[str] = None
+    apr: Optional[Decimal] = None
+
+
 class Account(BaseModel):
     """Domain model for a bank account."""
     id: str
@@ -62,6 +75,15 @@ class Account(BaseModel):
     initial_balance: Optional[Decimal] = None
     initial_import_completed_at: Optional[datetime] = None
     transactions: list[Transaction] = Field(default_factory=list)
+    apr: Optional[Decimal] = None
+    """
+    Annual Percentage Rate (APR) or interest rate for the account.
+
+    - Depository: interest earned (e.g., savings, CD)
+    - Credit: interest charged (e.g., credit cards)
+    - Loan: interest charged (e.g., mortgages, auto loans)
+    - Other accounts: can be None
+    """
 
 
 def parse_account_type(value: Any) -> AccountType:

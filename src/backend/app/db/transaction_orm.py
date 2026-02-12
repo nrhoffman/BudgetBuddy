@@ -32,6 +32,8 @@ class TransactionORM(Base):
         ForeignKey("accounts.id"),
     )
 
+    account_type: Mapped[str] = mapped_column(String, nullable=False)
+
     account = relationship(
         "AccountORM",
         back_populates="transactions",
@@ -89,3 +91,29 @@ class TransactionORM(Base):
         String,
         nullable=True,
     )
+
+    @property
+    def direction(self) -> str:
+        """
+        Determine cash flow direction relative to the user.
+
+        Returns:
+            str: "in" if money is received by the user,
+                "out" if money leaves the user.
+
+        Rules:
+            Depository / checking/savings:
+                INCOME, TRANSFER_IN  -> "in"
+                EXPENSE, TRANSFER_OUT -> "out"
+            Credit/Loan:
+                INCOME, TRANSFER_IN  -> "out"  (payment reduces balance owed)
+                EXPENSE, TRANSFER_OUT -> "in"  (charges increase balance owed)
+        """
+
+        if self.account_type in {"credit", "loan"}:
+            if self.category_primary in {"TRANSFER_OUT"}:
+                return "out"
+            return "in"
+        if self.category_primary in {"INCOME", "TRANSFER_IN"}:
+            return "in"
+        return "out"

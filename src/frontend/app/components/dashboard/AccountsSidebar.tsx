@@ -8,7 +8,7 @@ type Props = {
   selectedAccount: Account | null;
   onSelectAccount: (account: Account) => void;
   onDeleteAccount: (accountId: string) => void;
-  onEditAccount: (accountId: string, newName: string) => Promise<void>;
+  onEditAccount: (accountId: string, newName: string, apr: number | null) => Promise<void>;
   deleting: string | null;
   editing: string | null;
 };
@@ -24,27 +24,37 @@ export default function AccountsSidebar({
 }: Props) {
   const [openOptionsId, setOpenOptionsId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editApr, setEditApr] = useState("");
 
   const startEdit = (account: Account) => {
     setEditingId(account.id);
-    setEditValue(account.name);
+    setEditName(account.name);
+    setEditApr(account.apr?.toString() ?? "");
     setOpenOptionsId(null);
   };
 
   const saveEdit = async (account: Account) => {
-    if (!editValue.trim() || editValue === account.name) {
+    const trimmedName = editName.trim();
+    const parsedApr = editApr === "" ? null : Number(editApr);
+
+    const nameUnchanged = trimmedName === account.name;
+    const aprUnchanged = parsedApr === (account.apr ?? null);
+
+    if ((!trimmedName || nameUnchanged) && aprUnchanged) {
       setEditingId(null);
       return;
     }
 
-    await onEditAccount(account.id, editValue.trim());
+    await onEditAccount(account.id, trimmedName, parsedApr);
+
     setEditingId(null);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditValue("");
+    setEditName("");
+    setEditApr("");
   };
 
   return (
@@ -62,9 +72,8 @@ export default function AccountsSidebar({
             return (
               <li
                 key={account.id}
-                className={`flex justify-between items-center p-3 rounded border relative ${
-                  isSelected ? "bg-blue-50 border-blue-500" : "hover:bg-gray-50 border-transparent"
-                }`}
+                className={`flex justify-between items-center p-3 rounded border relative ${isSelected ? "bg-blue-50 border-blue-500" : "hover:bg-gray-50 border-transparent"
+                  }`}
               >
                 {/* Account Info */}
                 <div
@@ -73,19 +82,47 @@ export default function AccountsSidebar({
                 >
                   <div className="flex flex-col justify-center">
                     {editingId === account.id ? (
-                      <input
-                        autoFocus
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => saveEdit(account)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEdit(account);
-                          if (e.key === "Escape") cancelEdit();
-                        }}
-                        className="font-medium text-sm px-1 py-0.5 border rounded w-full"
-                      />
+                      <div className="flex flex-col gap-2 w-full">
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="font-medium text-sm px-1 py-0.5 border rounded w-full"
+                        />
+
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="APR %"
+                          value={editApr}
+                          onChange={(e) => setEditApr(e.target.value)}
+                          className="text-xs px-1 py-0.5 border rounded w-24"
+                        />
+
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => saveEdit(account)}
+                            disabled={editing === account.id}
+                            className="px-3 py-1 bg-green-500 text-white rounded disabled:bg-gray-300"
+                          >
+                            {editing === account.id ? "Saving..." : "Save"}
+                          </button>
+
+                          <button
+                            onClick={cancelEdit}
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <span className="font-medium">{account.name}</span>
+                    )}
+                    {account.apr != null && (
+                      <span className="text-xs text-gray-500">
+                        Interest: {account.apr}%
+                      </span>
                     )}
                     <span className="text-xs text-gray-500">{account.type}</span>
                   </div>

@@ -1,5 +1,5 @@
 """
-Tests for the BankItemToken ORM model.
+Tests for the BankItemTokenORM ORM model.
 
 Validates creation, nullable fields, and timestamp defaults.
 """
@@ -10,8 +10,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.base import Base
-from app.db.bank_item_token_orm import BankItemToken
+from app.db.bank_item_token_orm import BankItemTokenORM
 
 
 # -----------------------
@@ -21,7 +20,7 @@ from app.db.bank_item_token_orm import BankItemToken
 def db_session():
     """Provide a SQLAlchemy session using in-memory SQLite."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(engine)
+    BankItemTokenORM.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
     yield session
@@ -68,8 +67,8 @@ def test_bank_item_token_creation(
     access_token,
     item_id,
 ):
-    """Ensure BankItemToken rows persist correctly."""
-    token = BankItemToken(
+    """Ensure BankItemTokenORM rows persist correctly."""
+    token = BankItemTokenORM(
         user_id=user_id,
         provider=provider,
         institution_id=institution_id,
@@ -82,7 +81,7 @@ def test_bank_item_token_creation(
     db_session.commit()
 
     saved = (
-        db_session.query(BankItemToken)
+        db_session.query(BankItemTokenORM)
         .filter_by(user_id=user_id, item_id=item_id)
         .one()
     )
@@ -102,7 +101,7 @@ def test_bank_item_token_creation(
 # -----------------------
 def test_bank_item_token_created_at_timezone(db_session):
     """created_at should be set on insert (timezone-aware if supported)."""
-    token = BankItemToken(
+    token = BankItemTokenORM(
         user_id="user_010",
         provider="plaid",
         institution_id="ins_010",
@@ -115,7 +114,7 @@ def test_bank_item_token_created_at_timezone(db_session):
     db_session.commit()
 
     saved = (
-        db_session.query(BankItemToken)
+        db_session.query(BankItemTokenORM)
         .filter_by(user_id="user_010", item_id="item_010")
         .one()
     )

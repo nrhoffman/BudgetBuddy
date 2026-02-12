@@ -5,16 +5,19 @@ This task synchronizes transactions for a given banking item, fetching updates
 from Plaid and applying them via AccountService with structured error handling.
 """
 
+from datetime import datetime, timezone
 from typing import Optional
 from app.celery_app import celery_app
 from app.logger import logger
 from app.db.session import SESSIONLOCAL
-from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
-from app.repositories.transaction_repository import TransactionRepository
+from app.models.raw_provider_data import RawProviderData, Identity, Cursor
+from app.models.account import Account
+from app.db.bank_item_token_orm import BankItemTokenORM
 from app.services.account_service import AccountService
 from app.providers.plaid_sandbox import PlaidSandbox
 from app.exceptions import DatabaseError, ExternalServiceError, ValidationError
+from app.tasks.helpers import build_plaid_sync_context
 
 
 @celery_app.task(bind=True, name="app.tasks.plaid.sync_transactions")
@@ -51,18 +54,34 @@ def sync_transactions(_task, item_id: str) -> None:
     db = SESSIONLOCAL()
 
     try:
-        bank_repo = BankRepository(db)
-        txn_repo = TransactionRepository(db)
-        account_repo = AccountRepository(db)
-        account_service = AccountService(account_repo, bank_repo, txn_repo)
-        plaid = PlaidSandbox()
+        ctx = build_plaid_sync_context(db)
 
-        token = _fetch_access_token(bank_repo, item_id)
+        token = _fetch_access_token(ctx.bank_repo, item_id)
 
-        cursor_record = bank_repo.get_cursor_by_item_id(item_id)
+        accounts = ctx.account_repo.get_all_accounts_with_transactions(token.user_id)
+
+        cursor_record = ctx.bank_repo.get_cursor_by_item_id(item_id)
         cursor: Optional[str] = cursor_record.cursor if cursor_record else None
 
-        sync_result = _fetch_transactions(plaid, token.access_token, cursor)
+        sync_result = _fetch_transactions(
+            ctx.plaid,
+            token.access_token,
+            accounts,
+            cursor)
+
+        sync_res_model = RawProviderData(
+            provider="plaid",
+            endpoint="transactions_sync",
+            payload=sync_result.get("raw"),
+            identity=Identity(user_id=token.user_id, item_id=item_id),
+            cursor=Cursor(
+                before=cursor,
+                after=sync_result.get("next_cursor")
+            ),
+            occurred_at=datetime.now(timezone.utc),
+        )
+
+        ctx.raw_provider_repo.save(sync_res_model)
 
         # Log first added/modified for debug
         if added := sync_result.get("added"):
@@ -70,9 +89,14 @@ def sync_transactions(_task, item_id: str) -> None:
         if modified := sync_result.get("modified"):
             logger.debug("First modified transaction: %s", modified[0])
 
-        _apply_transactions(account_service, token, sync_result)
+        _apply_transactions(ctx.account_service, token, sync_result)
 
-        _save_cursor(bank_repo, token.user_id, item_id, sync_result.get("next_cursor"))
+        _save_cursor(
+            ctx.bank_repo,
+            token.user_id,
+            item_id,
+            sync_result.get("next_cursor")
+        )
 
         logger.info("Transaction sync completed successfully for item_id: %s", item_id)
 
@@ -89,7 +113,7 @@ def sync_transactions(_task, item_id: str) -> None:
         logger.debug("Database session closed for item_id: %s", item_id)
 
 
-def _fetch_access_token(bank_repo: BankRepository, item_id: str) -> str:
+def _fetch_access_token(bank_repo: BankRepository, item_id: str) -> BankItemTokenORM:
     """
     Retrieve the access token for a given Plaid item.
 
@@ -114,6 +138,7 @@ def _fetch_access_token(bank_repo: BankRepository, item_id: str) -> str:
 def _fetch_transactions(
         plaid: PlaidSandbox,
         access_token: str,
+        accounts: list[Account],
         cursor: Optional[str]
 ) -> dict:
     """
@@ -122,6 +147,7 @@ def _fetch_transactions(
     Args:
         plaid (PlaidSandbox): Plaid sandbox provider instance.
         access_token (str): Plaid access token for the item.
+        accounts (list[Account]): List of accounts for access_token
         cursor (Optional[str]): Cursor to fetch incremental updates.
 
     Returns:
@@ -132,7 +158,7 @@ def _fetch_transactions(
     """
 
     try:
-        return plaid.get_transactions_sync(access_token, cursor)
+        return plaid.get_transactions_sync(access_token, accounts, cursor)
     except Exception as exc:
         logger.exception("Plaid sync failed for access token")
         raise ExternalServiceError("Failed to fetch transactions from Plaid") from exc

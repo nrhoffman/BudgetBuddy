@@ -61,3 +61,5 @@ class AccountORM(Base):
         back_populates="account",
         cascade="all, delete-orphan",
     )
+
+    apr: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=True)

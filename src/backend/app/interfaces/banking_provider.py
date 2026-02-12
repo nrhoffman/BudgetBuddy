@@ -89,6 +89,7 @@ class BankingProvider(ABC):
     def get_transactions_sync(
         self,
         access_token: str,
+        accounts: list[Account],
         cursor: Optional[str] = None
     ) -> dict:
         """
@@ -96,6 +97,7 @@ class BankingProvider(ABC):
 
         Args:
             access_token (str): Plaid access token.
+            accounts (list[Account]): Accounts for access_token
             cursor (Optional[str]): Optional cursor for incremental updates.
 
         Returns:
@@ -105,34 +107,4 @@ class BankingProvider(ABC):
         Raises:
             ApiException: If the Plaid API call fails.
             Exception: For any unexpected errors.
-        """
-
-    @abstractmethod
-    def sort_transactions(self, txns: list[Transaction]) -> list[Transaction]:
-        """
-        Sort transactions deterministically by date and transaction ID.
-
-        Args:
-            txns (list[Transaction]): List of Transaction objects.
-
-        Returns:
-            list[Transaction]: Sorted list of transactions.
-
-        Raises:
-            Exception: If sorting fails.
-        """
-
-    @abstractmethod
-    def map_plaid_transaction(self, txn) -> Transaction:
-        """
-        Map a Plaid transaction object to the Transaction domain model.
-
-        Args:
-            txn: Plaid transaction object.
-
-        Returns:
-            Transaction: Mapped Transaction domain model.
-
-        Raises:
-            Exception: If mapping fails.
         """

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.db.account_orm import AccountORM
 from app.db.transaction_orm import TransactionORM
 from app.mappers.account_mapper import orm_to_domain_account
-from app.models.account import Account
+from app.models.account import Account, UpdateAccount
 
 
 class AccountRepository:
@@ -93,7 +93,7 @@ class AccountRepository:
         self,
         account_id: str,
         user_id: str,
-        account_name: Optional[str] = None,
+        payload: Optional[UpdateAccount] = None,
         balance: Optional[float] = None,
     ) -> None:
         """
@@ -104,6 +104,7 @@ class AccountRepository:
             user_id: Identifier of the owning user.
             account_name: Optional new account name.
             balance: Optional new account balance.
+            apr: Optional APR/Interest of the account
 
         Raises:
             ValueError: If the account does not exist.
@@ -122,10 +123,12 @@ class AccountRepository:
                 f"Account {account_id} not found for user {user_id}"
             )
 
-        if account_name is not None:
-            orm.name = account_name
+        if payload.account_name is not None:
+            orm.name = payload.account_name
         if balance is not None:
             orm.balance = balance
+        if payload.apr is not None:
+            orm.apr = payload.apr
 
     def delete_account(self, account_id: str, user_id: str) -> None:
         """
@@ -216,7 +219,7 @@ class AccountRepository:
                 )
 
                 for tx in txs:
-                    running_balance += self.signed_amount(tx, account.type)
+                    running_balance += self.signed_amount(tx)
                     tx.balance_after = running_balance
 
                 account.balance = running_balance
@@ -270,33 +273,27 @@ class AccountRepository:
         )
         for tx in old_txs:
             tx.balance_after = running_balance
-            running_balance -= self.signed_amount(tx, account.type)
+            running_balance -= self.signed_amount(tx)
 
     # -----------------------
     # Utility methods
     # -----------------------
 
-    def signed_amount(self, tx: TransactionORM, account_type: str) -> Decimal:
+    def signed_amount(self, tx: TransactionORM) -> Decimal:
         """
-        Return the signed amount of a transaction.
+        Return the signed amount of a transaction based on its direction.
 
-        Income increases balance, expenses decrease it. Credit and
-        loan accounts invert this logic.
+        - 'in' transactions increase the balance.
+        - 'out' transactions decrease the balance.
 
         Args:
-            tx: Transaction ORM instance.
-            account_type: Account type.
+            tx (TransactionORM): Transaction ORM instance with a 'direction' property.
 
         Returns:
-            Signed transaction amount.
+            Decimal: Signed transaction amount.
         """
         amount = Decimal(tx.amount)
-        is_income = tx.category_primary in {"INCOME", "TRANSFER_IN"}
-
-        if account_type in {"credit", "loan"}:
-            is_income = not is_income
-
-        return amount if is_income else -amount
+        return amount if tx.direction == "in" else -amount
 
     # -----------------------
     # Query helpers

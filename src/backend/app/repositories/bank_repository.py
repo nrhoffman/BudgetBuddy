@@ -11,8 +11,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.db.bank_item_token_orm import BankItemToken
-from app.db.bank_item_cursor_orm import BankItemCursor
+from app.db.bank_item_token_orm import BankItemTokenORM
+from app.db.bank_item_cursor_orm import BankItemCursorORM
 from app.models.exchange_token import ExchangeToken
 
 
@@ -49,10 +49,10 @@ class BankRepository:
             item_id (str): Bank item ID.
             exchange_token (ExchangeToken): Exchange token object.
         """
-        stmt = select(BankItemToken).where(
-            BankItemToken.user_id == user_id,
-            BankItemToken.provider == provider,
-            BankItemToken.institution_id == exchange_token.institution_id,
+        stmt = select(BankItemTokenORM).where(
+            BankItemTokenORM.user_id == user_id,
+            BankItemTokenORM.provider == provider,
+            BankItemTokenORM.institution_id == exchange_token.institution_id,
         )
         token = self.session.scalar(stmt)
 
@@ -61,7 +61,7 @@ class BankRepository:
             token.item_id = item_id
             token.institution_name = exchange_token.institution_name
         else:
-            token = BankItemToken(
+            token = BankItemTokenORM(
                 user_id=user_id,
                 provider=provider,
                 institution_id=exchange_token.institution_id,
@@ -71,7 +71,11 @@ class BankRepository:
             )
             self.session.add(token)
 
-    def get_by_user(self, user_id: str, institution_id: str) -> Optional[BankItemToken]:
+    def get_by_user(
+            self,
+            user_id: str,
+            institution_id: str
+    ) -> Optional[BankItemTokenORM]:
         """
         Fetch a bank item token for a given user and institution.
 
@@ -80,16 +84,16 @@ class BankRepository:
             institution_id (str): Institution identifier.
 
         Returns:
-            Optional[BankItemToken]: Token instance if found, otherwise None.
+            Optional[BankItemTokenORM]: Token instance if found, otherwise None.
         """
         token = (
-            self.session.query(BankItemToken)
+            self.session.query(BankItemTokenORM)
             .filter_by(user_id=user_id, institution_id=institution_id)
             .one_or_none()
         )
         return token
 
-    def get_token_by_item_id(self, item_id: str) -> Optional[BankItemToken]:
+    def get_token_by_item_id(self, item_id: str) -> Optional[BankItemTokenORM]:
         """
         Fetch a bank item token by its item ID.
 
@@ -97,13 +101,13 @@ class BankRepository:
             item_id (str): Bank item ID.
 
         Returns:
-            Optional[BankItemToken]: Token instance if found, otherwise None.
+            Optional[BankItemTokenORM]: Token instance if found, otherwise None.
 
         Raises:
             RuntimeError: If query fails.
         """
         token = (
-            self.session.query(BankItemToken)
+            self.session.query(BankItemTokenORM)
             .filter_by(item_id=item_id)
             .one_or_none()
         )
@@ -122,7 +126,7 @@ class BankRepository:
             cursor (str): Cursor value.
         """
         existing = (
-            self.session.query(BankItemCursor)
+            self.session.query(BankItemCursorORM)
             .filter_by(user_id=user_id, item_id=item_id)
             .one_or_none()
         )
@@ -130,14 +134,14 @@ class BankRepository:
             existing.cursor = cursor
             existing.updated_at = datetime.now(timezone.utc)
         else:
-            new_cursor = BankItemCursor(
+            new_cursor = BankItemCursorORM(
                 user_id=user_id,
                 item_id=item_id,
                 cursor=cursor,
             )
             self.session.add(new_cursor)
 
-    def get_cursor_by_item_id(self, item_id: str) -> Optional[BankItemCursor]:
+    def get_cursor_by_item_id(self, item_id: str) -> Optional[BankItemCursorORM]:
         """
         Fetch the incremental sync cursor for a bank item.
 
@@ -145,10 +149,10 @@ class BankRepository:
             item_id (str): Bank item ID.
 
         Returns:
-            Optional[BankItemCursor]: Cursor instance if found, otherwise None.
+            Optional[BankItemCursorORM]: Cursor instance if found, otherwise None.
         """
         cursor = (
-            self.session.query(BankItemCursor)
+            self.session.query(BankItemCursorORM)
             .filter_by(item_id=item_id)
             .one_or_none()
         )
@@ -169,13 +173,13 @@ class BankRepository:
         """
         institutions = self.session.execute(
             select(
-                BankItemToken.institution_id,
-                BankItemToken.institution_name,
+                BankItemTokenORM.institution_id,
+                BankItemTokenORM.institution_name,
             )
-            .where(BankItemToken.user_id == user_id)
+            .where(BankItemTokenORM.user_id == user_id)
             .group_by(
-                BankItemToken.institution_id,
-                BankItemToken.institution_name
+                BankItemTokenORM.institution_id,
+                BankItemTokenORM.institution_name
             )
         ).all()
 

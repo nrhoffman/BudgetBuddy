@@ -17,7 +17,9 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.repositories.bank_repository import BankRepository
+from app.repositories.raw_provider_repository import RawProviderRepository
 from app.models.user import User
+from app.models.banking_service_deps import BankingServiceDependencies
 from app.providers.plaid_sandbox import PlaidSandbox
 from app.services.account_service import AccountService
 from app.services.auth_service import AuthService
@@ -101,14 +103,18 @@ def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
     )
     account_repo = AccountRepository(db)
     bank_repo = BankRepository(db)
+    raw_provider_repo = RawProviderRepository(db)
     banking_provider = PlaidSandbox()
 
-    return BankingService(
+    deps = BankingServiceDependencies(
         account_service=account_service,
         account_repo=account_repo,
         bank_repo=bank_repo,
+        raw_provider_repo=raw_provider_repo,
         banking_provider=banking_provider
     )
+
+    return BankingService(deps)
 
 
 # ---------------------------

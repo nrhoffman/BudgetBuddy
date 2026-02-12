@@ -8,7 +8,7 @@ and performing incremental transaction syncs.
 """
 
 import os
-from typing import Optional
+from typing import Optional, Any
 
 from plaid import ApiClient, Configuration
 from plaid.api import plaid_api
@@ -23,8 +23,10 @@ from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
-from app.models.account import Account, parse_account_type, parse_account_subtype
+from app.mappers.transaction_mapper import map_plaid_transaction, sort_transactions
+from app.mappers.account_index import AccountIndex
 from app.models.transaction import Transaction
+from app.models.account import Account
 from app.interfaces.banking_provider import BankingProvider
 
 
@@ -92,44 +94,41 @@ class PlaidSandbox(BankingProvider):
         response = self.client.item_public_token_exchange(request)
         return response
 
-    def get_accounts(self, access_token: str) -> list[Account]:
+    def get_accounts(self, access_token: str) -> Any:
         """
-        Fetch accounts associated with a given access token.
+        Retrieve raw account balance data from the provider.
+
+        This method calls the provider's accounts balance endpoint and returns
+        the unmodified response payload. Mapping to domain Account models and
+        persistence are handled by higher-level services.
 
         Args:
-            access_token (str): Plaid access token for the user.
+            access_token (str): Provider access token for the linked institution.
 
         Returns:
-            list[Account]: List of Account domain models.
+            Any: Raw provider response containing account and balance data.
         """
         request = AccountsBalanceGetRequest(access_token=access_token)
         res = self.client.accounts_balance_get(request)
-        accounts = []
-        for acc in res.accounts:
-            accounts.append(
-                Account(
-                    id=acc.account_id,
-                    name=acc.name,
-                    type=parse_account_type(acc.type),
-                    subtype=parse_account_subtype(acc.subtype),
-                    balance=acc.balances.current,
-                )
-            )
-        return accounts
+        return res
 
     def get_transactions(
         self, access_token: str, start_date: str, end_date: str
-    ) -> list[Transaction]:
+    ) -> Any:
         """
-        Fetch transactions for an account within a specified date range.
+        Retrieve raw transaction data from the provider for a given date range.
+
+        This method calls the provider's transactions endpoint and returns the
+        unmodified response payload. Transaction mapping, filtering, sorting,
+        and persistence are handled by higher-level services.
 
         Args:
-            access_token (str): Plaid access token for the user.
-            start_date (str): Start date (YYYY-MM-DD) for transactions.
-            end_date (str): End date (YYYY-MM-DD) for transactions.
+            access_token (str): Provider access token for the linked institution.
+            start_date (str): Start date (YYYY-MM-DD) for the transaction query.
+            end_date (str): End date (YYYY-MM-DD) for the transaction query.
 
         Returns:
-            list[Transaction]: List of mapped Transaction domain models.
+            Any: Raw provider response containing transaction data.
         """
         request = TransactionsGetRequest(
             access_token=access_token,
@@ -137,12 +136,12 @@ class PlaidSandbox(BankingProvider):
             end_date=end_date,
         )
         res = self.client.transactions_get(request)
-        transactions = [self.map_plaid_transaction(txn) for txn in res.transactions]
-        return self.sort_transactions(transactions)
+        return res
 
     def get_transactions_sync(
         self,
         access_token: str,
+        accounts: list[Account],
         cursor: Optional[str] = None
     ) -> dict:
         """
@@ -150,16 +149,20 @@ class PlaidSandbox(BankingProvider):
 
         Args:
             access_token (str): Plaid access token.
+            accounts (list[Account]): List of accounts for access_token
             cursor (Optional[str]): Optional cursor for incremental updates.
 
         Returns:
             dict: Dictionary with sorted added, modified, removed transactions
-                  and the next_cursor.
+                  the next_cursor, and raw data.
         """
         has_more = True
         added: list[Transaction] = []
         modified: list[Transaction] = []
         removed: list[str] = []
+        raw_pages: list[dict] = []
+
+        account_index = AccountIndex(accounts)
 
         while has_more:
             request = TransactionsSyncRequest(
@@ -168,8 +171,18 @@ class PlaidSandbox(BankingProvider):
 
             res = self.client.transactions_sync(request)
 
-            added.extend(map(self.map_plaid_transaction, res.added))
-            modified.extend(map(self.map_plaid_transaction, res.modified))
+            raw_pages.append(res.to_dict())
+
+            added.extend([
+                map_plaid_transaction(
+                    tx, account_index.type_for(tx.account_id)
+                ) for tx in res.added
+            ])
+            modified.extend([
+                map_plaid_transaction(
+                    tx, account_index.type_for(tx.account_id)
+                ) for tx in res.modified
+            ])
             removed.extend(
                 txn["transaction_id"] if isinstance(txn, dict) else txn
                 for txn in res.removed
@@ -179,50 +192,9 @@ class PlaidSandbox(BankingProvider):
             has_more = res.has_more
 
         return {
-            "added": self.sort_transactions(added),
-            "modified": self.sort_transactions(modified),
+            "added": sort_transactions(added),
+            "modified": sort_transactions(modified),
             "removed": removed,
             "next_cursor": cursor,
+            "raw": raw_pages
         }
-
-    def sort_transactions(self, txns: list[Transaction]) -> list[Transaction]:
-        """
-        Sort transactions deterministically by date and transaction ID.
-
-        Args:
-            txns (list[Transaction]): List of Transaction objects.
-
-        Returns:
-            list[Transaction]: Sorted list of transactions.
-        """
-        return sorted(txns, key=lambda t: (t.date, t.transaction_id))
-
-    def map_plaid_transaction(self, txn) -> Transaction:
-        """
-        Map a Plaid transaction object to the Transaction domain model.
-
-        Args:
-            txn: Plaid transaction object.
-
-        Returns:
-            Transaction: Mapped Transaction domain model.
-        """
-        pfc = getattr(txn, "personal_finance_category", None)
-        return Transaction(
-            transaction_id=txn.transaction_id,
-            account_id=txn.account_id,
-            name=txn.name,
-            merchant_name=getattr(txn, "merchant_name", None),
-            amount=txn.amount,
-            date=txn.date,
-            category_primary=getattr(pfc, "primary", None) if pfc else None,
-            category_detailed=getattr(pfc, "detailed", None) if pfc else None,
-            category_confidence_level=getattr(
-                pfc,
-                "confidence_level",
-                None
-            ) if pfc else None,
-            pending=getattr(txn, "pending", None),
-            iso_currency_code=getattr(txn, "iso_currency_code", None),
-            unofficial_currency_code=getattr(txn, "unofficial_currency_code", None),
-        )

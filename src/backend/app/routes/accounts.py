@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from app.dependencies import get_account_service, get_current_user
+from app.models.account import UpdateAccount
 from app.models.transaction import UpdateTransaction
 from app.services.account_service import AccountService
 
@@ -36,10 +37,10 @@ def get_accounts(
     )}
 
 
-@router.post("/update-account/{account_id}/{account_name}")
+@router.post("/update-account/{account_id}")
 def update_account(
     account_id: str,
-    account_name: str,
+    payload: UpdateAccount,
     account_service: AccountService = Depends(get_account_service),
     current_user=Depends(get_current_user),
 ) -> Any:
@@ -55,7 +56,7 @@ def update_account(
     account_service.update_account(
         account_id=account_id,
         user_id=current_user.id,
-        account_name=account_name,
+        payload=payload,
     )
     return {"message": "Account updated successfully"}
 

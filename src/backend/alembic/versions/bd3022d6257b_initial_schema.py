@@ -1,18 +1,18 @@
 """initial schema
 
-Revision ID: f955f8f53252
+Revision ID: bd3022d6257b
 Revises: 
-Create Date: 2026-02-02 13:31:32.682592
+Create Date: 2026-02-11 09:58:34.765186
 
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'f955f8f53252'
+revision: str = 'bd3022d6257b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -40,6 +40,21 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('raw_provider_events',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('provider', sa.String(length=50), nullable=False),
+    sa.Column('endpoint', sa.String(length=100), nullable=False),
+    sa.Column('user_id', sa.String(), nullable=True),
+    sa.Column('item_id', sa.String(), nullable=True),
+    sa.Column('cursor_before', sa.String(), nullable=True),
+    sa.Column('cursor_after', sa.String(), nullable=True),
+    sa.Column('fetched_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('payload', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('provider', 'endpoint', 'item_id', 'cursor_after', name='uq_raw_provider_event_cursor')
+    )
+    op.create_index(op.f('ix_raw_provider_events_item_id'), 'raw_provider_events', ['item_id'], unique=False)
+    op.create_index(op.f('ix_raw_provider_events_user_id'), 'raw_provider_events', ['user_id'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('username', sa.String(), nullable=False),
@@ -59,12 +74,14 @@ def upgrade() -> None:
     sa.Column('initial_balance', sa.Numeric(precision=12, scale=2), nullable=False),
     sa.Column('initial_import_completed_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('user_id', sa.String(), nullable=False),
+    sa.Column('apr', sa.Numeric(precision=4, scale=2), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('transactions',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('account_id', sa.String(), nullable=False),
+    sa.Column('account_type', sa.String(), nullable=False),
     sa.Column('amount', sa.Numeric(precision=12, scale=2), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=False),
     sa.Column('balance_after', sa.Numeric(precision=12, scale=2), nullable=True),
@@ -88,6 +105,9 @@ def downgrade() -> None:
     op.drop_table('transactions')
     op.drop_table('accounts')
     op.drop_table('users')
+    op.drop_index(op.f('ix_raw_provider_events_user_id'), table_name='raw_provider_events')
+    op.drop_index(op.f('ix_raw_provider_events_item_id'), table_name='raw_provider_events')
+    op.drop_table('raw_provider_events')
     op.drop_table('bank_item_tokens')
     op.drop_table('bank_item_cursors')
     # ### end Alembic commands ###
