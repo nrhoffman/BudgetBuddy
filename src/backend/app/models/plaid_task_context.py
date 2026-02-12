@@ -1,9 +1,9 @@
 """
 Plaid task execution context.
 
-This module defines a dataclass that encapsulates all dependencies 
-required to execute background tasks interacting with Plaid. 
-It simplifies task functions by grouping the database session, 
+This module defines a dataclass that encapsulates all dependencies
+required to execute background tasks interacting with Plaid.
+It simplifies task functions by grouping the database session,
 repositories, services, and external provider into a single container.
 """
 
@@ -38,8 +38,8 @@ class PlaidTaskContext:
         plaid (PlaidSandbox): Plaid sandbox provider integration
         instance.
 
-    This dataclass exists to simplify dependency injection in Celery 
-    tasks or other background jobs interacting with Plaid, allowing 
+    This dataclass exists to simplify dependency injection in Celery
+    tasks or other background jobs interacting with Plaid, allowing
     all required resources to be accessed via a single object.
     """
 

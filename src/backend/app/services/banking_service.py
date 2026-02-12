@@ -127,7 +127,7 @@ class BankingService:
                 logger.info(
                     "No accounts returned from provider for user %s",
                     user_id
-            )
+                )
                 return
 
             self.banking_deps.raw_provider_repo.save(
@@ -165,8 +165,9 @@ class BankingService:
                     provider="plaid",
                     endpoint="transactions_get",
                     payload=txn_res.to_dict(),
-                    identity=Identity(user_id=user_id,
-                                      item_id=exchange_result.item_id
+                    identity=Identity(
+                        user_id=user_id,
+                        item_id=exchange_result.item_id
                     )
                 )
             )

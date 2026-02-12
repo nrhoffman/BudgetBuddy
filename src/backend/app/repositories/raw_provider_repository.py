@@ -15,13 +15,14 @@ from sqlalchemy.orm import Session
 from app.db.raw_provider_orm import RawProviderORM
 from app.models.raw_provider_data import RawProviderData
 
+
 class RawProviderRepository:
     """
     Repository for storing raw provider events in the database.
 
     Provides a method to save RawProviderData objects by mapping them
     to the SQLAlchemy ORM model.
-    
+
     Attributes:
         session (Session): SQLAlchemy session used for database operations.
     """

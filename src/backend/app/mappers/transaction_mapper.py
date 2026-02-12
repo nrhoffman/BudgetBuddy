@@ -1,20 +1,21 @@
 """
 Transaction mapping and sorting utilities.
 
-This module provides helper functions for working with transaction data 
-retrieved from external banking providers, such as Plaid. 
+This module provides helper functions for working with transaction data
+retrieved from external banking providers, such as Plaid.
 
 Functions:
-- `sort_transactions(txns)`: Sorts a list of `Transaction` objects 
+- `sort_transactions(txns)`: Sorts a list of `Transaction` objects
   deterministically by date and transaction ID.
-- `map_plaid_transaction(txn)`: Maps a Plaid transaction object to the 
+- `map_plaid_transaction(txn)`: Maps a Plaid transaction object to the
   domain `Transaction` model used internally in the application.
 
-These utilities are intended to centralize transaction transformation 
+These utilities are intended to centralize transaction transformation
 logic and ensure consistent ordering and mapping across services and tasks.
 """
 
 from app.models.transaction import Transaction
+
 
 def sort_transactions(txns: list[Transaction]) -> list[Transaction]:
     """

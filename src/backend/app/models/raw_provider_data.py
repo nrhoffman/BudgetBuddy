@@ -2,14 +2,15 @@
 Domain models for raw provider data and related metadata.
 
 This module defines immutable dataclasses representing raw events
-from external banking providers. These classes encapsulate the 
-provider payload, user/item identity, cursor information for 
+from external banking providers. These classes encapsulate the
+provider payload, user/item identity, cursor information for
 incremental updates, and the timestamp of the event.
 """
 
 from dataclasses import dataclass
 from typing import Optional, Dict
 from datetime import datetime
+
 
 @dataclass(frozen=True)
 class Cursor:
@@ -24,6 +25,7 @@ class Cursor:
     before: Optional[str] = None
     after: Optional[str] = None
 
+
 @dataclass(frozen=True)
 class Identity:
     """
@@ -37,6 +39,7 @@ class Identity:
 
     user_id: Optional[str] = None
     item_id: Optional[str] = None
+
 
 @dataclass(frozen=True)
 class RawProviderData:

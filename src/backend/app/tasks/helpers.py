@@ -17,6 +17,7 @@ from app.repositories.raw_provider_repository import RawProviderRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.services.account_service import AccountService
 
+
 def build_plaid_sync_context(db: Session) -> PlaidTaskContext:
     """
     Construct a fully initialized PlaidTaskContext for transaction sync tasks.
