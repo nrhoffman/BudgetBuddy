@@ -1,13 +1,23 @@
+"use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
 
-  const linkClass = (path: string) =>
-    `block px-6 py-3 rounded-md text-lg font-medium transition-colors duration-200 ${
-      pathname === path ? "bg-blue-100 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"
+  const linkClass = (path: string) => {
+    const isHome = path === "/dashboard";
+    const isActive = isHome
+      ? pathname === "/dashboard"
+      : pathname.startsWith(path);
+
+    return `block px-6 py-3 rounded-md text-lg font-medium transition-colors duration-200 ${
+      isActive
+        ? "bg-blue-100 text-blue-600 font-bold"
+        : "text-gray-700 hover:bg-gray-100"
     }`;
+  };
 
   return (
     <aside className="w-64 h-screen p-6 bg-white shadow-lg flex flex-col">

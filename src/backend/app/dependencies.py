@@ -24,6 +24,7 @@ from app.providers.plaid_sandbox import PlaidSandbox
 from app.services.account_service import AccountService
 from app.services.auth_service import AuthService
 from app.services.banking_service import BankingService
+from app.services.user_service import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -115,6 +116,29 @@ def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
     )
 
     return BankingService(deps)
+
+
+def get_user_service(db: Session = Depends(get_db)) -> UserService:
+    """
+    Provide a fully initialized UserService with repositories.
+
+    Args:
+        db: SQLAlchemy session dependency.
+
+    Returns:
+        UserService: Service instance ready for user operations.
+    """
+    account_repo = AccountRepository(db)
+    bank_repo = BankRepository(db)
+    user_repo = UserRepository(db)
+    raw_provider_repo = RawProviderRepository(db)
+
+    return UserService(
+        account_repo=account_repo,
+        bank_repo=bank_repo,
+        raw_provider_repo=raw_provider_repo,
+        user_repo=user_repo
+    )
 
 
 # ---------------------------

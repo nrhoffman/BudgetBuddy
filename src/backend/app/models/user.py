@@ -3,6 +3,7 @@ Pydantic models for user management.
 """
 
 import enum
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -38,11 +39,13 @@ class User(BaseModel):
         id: Unique identifier for the user.
         username: User's username.
         email: User's email address.
+        password: raw password
         hashed_password: Hashed password for authentication.
         role: Role of the user (admin or user).
     """
     id: str
     username: str
     email: str
-    hashed_password: str
+    password: str
+    hashed_password: Optional[str] = None
     role: UserRole = UserRole.USER

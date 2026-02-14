@@ -21,13 +21,15 @@ from app.exceptions import (
     BankingProviderError,
     ExternalServiceError,
 )
-from app.routes import auth, accounts, bank
+from app.routes import auth, accounts, bank, user
 
 app = FastAPI(title="BudgetBuddy API")
 
 app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(bank.router)
+app.include_router(user.router)
+
 
 
 @app.exception_handler(ValidationError)

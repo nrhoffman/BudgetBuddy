@@ -43,7 +43,7 @@ def update_account(
     payload: UpdateAccount,
     account_service: AccountService = Depends(get_account_service),
     current_user=Depends(get_current_user),
-) -> Any:
+) -> dict[str, str]:
     """
     Update the name of an existing account for the current user.
 
@@ -66,7 +66,7 @@ def remove_account(
     account_id: str,
     account_service: AccountService = Depends(get_account_service),
     current_user=Depends(get_current_user),
-) -> Any:
+) -> dict[str, str]:
     """
     Remove a specific account for the current user.
 

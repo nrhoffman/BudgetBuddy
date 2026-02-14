@@ -23,6 +23,7 @@ def orm_to_domain_user(orm: UserORM) -> User:
         id=orm.id,
         username=orm.username,
         email=orm.email,
+        password=orm.hashed_password,
         hashed_password=orm.hashed_password,
         role=orm.role,
     )

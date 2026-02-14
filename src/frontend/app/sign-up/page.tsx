@@ -70,6 +70,9 @@ export default function SignUpPage() {
               type="password"
               placeholder="Password"
               required
+              minLength={8}
+              pattern="^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+              title="Password must be at least 8 characters long, include one uppercase letter, one number, and one special character."
               className="p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button

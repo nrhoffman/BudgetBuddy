@@ -12,12 +12,12 @@
 - [ ] Currently modified syncs rewrites Manually modified categories and confidence
 
 ## In Progress
-- [ ] Need an option to delete all user data including raw
-- [ ] Password rules
+- [ ] Create a basic settings page
 - [ ] Getting snapshot occurs too often - make refresh manual / on schedule
-- [ ] Auth currently goes inactive when active (jwt token as well)
 
 ## Done
+- [x] Need an option to delete all user data including raw
+- [x] Password rules
 - [x] Verify balances work correctly credit/loan vs others
 - [x] Add APR/Interest to frontend
 - [x] Don't store raw data with same item_id and cursor

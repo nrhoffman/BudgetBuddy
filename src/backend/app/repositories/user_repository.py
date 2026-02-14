@@ -86,3 +86,16 @@ class UserRepository:
             role=user.role,
         )
         self.session.add(orm)
+
+    def delete(self, user_id: str) -> None:
+        """
+        Remove a user from the database.
+
+        Args:
+            user_id: User id for the user to be removed.
+        """
+        (
+            self.session.query(UserORM)
+            .filter(UserORM.id == user_id)
+            .delete(synchronize_session=False)
+        )

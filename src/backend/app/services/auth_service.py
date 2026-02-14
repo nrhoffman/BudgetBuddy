@@ -6,10 +6,12 @@ authentication and authorization logic including user creation,
 credential validation, and JWT access token issuance.
 """
 
+import re
+
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.auth.jwt import create_access_token
-from app.auth.password import verify_password
+from app.auth.password import verify_password, hash_password
 from app.logger import logger
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -18,6 +20,11 @@ from app.exceptions import (
     ValidationError,
     DatabaseError,
     AuthenticationError,
+)
+
+
+PASSWORD_REGEX = re.compile(
+    r"^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$"
 )
 
 
@@ -63,7 +70,17 @@ class AuthService:
                 integrity constraints.
             DatabaseError: If an unexpected database error occurs.
         """
+
+        if not PASSWORD_REGEX.match(user.password):
+            raise ValidationError(
+                "Password must be at least 8 characters long, "
+                "include one uppercase letter, one number, "
+                "and one special character."
+            )
+
         try:
+            user.hashed_password = hash_password(user.password)
+            user.password = None
             self.user_repo.add(user)
             logger.info("User created: id=%s, username=%s", user.id, user.username)
             return user.id
@@ -133,3 +150,22 @@ class AuthService:
         logger.info("User %s logged in successfully", user.id)
 
         return token
+
+    def verify_password(self, user: User, password: str) -> None:
+        """
+        Verify a user's password against the stored hashed credential.
+
+        Args:
+            user (User): Authenticated user model containing the hashed password.
+            password (str): Plaintext password provided for verification.
+
+        Raises:
+            AuthenticationError: If the user does not exist or the password
+                does not match the stored hash.
+        """
+        if not user or not verify_password(password, user.hashed_password):
+            logger.warning(
+                "Invalid credentials for username=%s",
+                user.username if user else "unknown",
+            )
+            raise AuthenticationError("Invalid credentials")

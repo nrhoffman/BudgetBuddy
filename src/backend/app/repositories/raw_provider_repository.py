@@ -66,6 +66,29 @@ class RawProviderRepository:
         )
         self.session.add(orm)
 
+    def delete_all(self, user_id: str) -> None:
+        """
+        Delete all raw provider records associated with a user.
+
+        Executes a bulk delete operation on the RawProviderORM table
+        for the specified user identifier. The caller is responsible
+        for committing the session.
+
+        Args:
+            user_id (str): Identifier of the user whose raw provider
+                records should be removed.
+
+        Notes:
+            - This operation performs a bulk delete and does not load
+              ORM objects into memory.
+            - The SQLAlchemy session is not committed within this method.
+        """
+        (
+            self.session.query(RawProviderORM)
+            .filter(RawProviderORM.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+
     def json_safe(self, value):
         """
         Recursively convert Python objects into JSON-serializable formats.

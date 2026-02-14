@@ -27,12 +27,20 @@ export default function Banner() {
 
       <div className="flex gap-4">
         {isLoggedIn && (
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="bg-white text-blue-600 font-semibold px-6 py-2 rounded-lg shadow hover:bg-gray-100 transition"
-          >
-            Dashboard
-          </button>
+          <>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="bg-white text-blue-600 font-semibold px-6 py-2 rounded-lg shadow hover:bg-gray-100 transition"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => router.push("/settings")}
+              className="bg-white text-blue-600 font-semibold px-6 py-2 rounded-lg shadow hover:bg-gray-100 transition"
+            >
+              Settings
+            </button>
+          </>
         )}
 
         {isLoggedIn ? (

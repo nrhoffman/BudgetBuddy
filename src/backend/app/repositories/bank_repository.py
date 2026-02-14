@@ -190,3 +190,34 @@ class BankRepository:
             }
             for inst in institutions
         ]
+
+    def delete_banking_data(self, user_id: str):
+        """
+        Delete all banking-related records for a user.
+
+        Removes both bank item tokens and incremental sync cursors
+        associated with the specified user. This operation performs
+        bulk deletes directly at the database level.
+
+        Args:
+            user_id (str): Identifier of the user whose banking data
+                should be removed.
+
+        Notes:
+            - This method executes bulk delete operations and does not
+              load ORM objects into memory.
+            - The SQLAlchemy session is not committed within this method.
+              The caller is responsible for committing or rolling back
+              the transaction.
+        """
+        (
+            self.session.query(BankItemCursorORM)
+            .filter(BankItemCursorORM.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+
+        (
+            self.session.query(BankItemTokenORM)
+            .filter(BankItemTokenORM.user_id == user_id)
+            .delete(synchronize_session=False)
+        )

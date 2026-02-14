@@ -157,6 +157,25 @@ class AccountRepository:
 
         self.session.delete(orm)
 
+    def delete_all_accounts(self, user_id: str) -> None:
+        """
+        Delete all existing accounts for user.
+
+        Args:
+            user_id: Identifier of the owning user.
+
+        Raises:
+            ValueError: If the account does not exist.
+        """
+        accounts = (
+            self.session.query(AccountORM)
+            .filter(AccountORM.user_id == user_id)
+            .all()
+        )
+
+        for account in accounts:
+            self.session.delete(account)
+
     # -----------------------
     # Balance updates
     # -----------------------
