@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Account } from "../../types/account";
+import type { Account } from "../../../types/account";
 
 type Props = {
   accounts: Account[];
   selectedAccount: Account | null;
-  onSelectAccount: (account: Account) => void;
+  onSelectAccount: (account: Account | null) => void; // allow null for "All"
   onDeleteAccount: (accountId: string) => void;
   onEditAccount: (accountId: string, newName: string, apr: number | null) => Promise<void>;
   deleting: string | null;
@@ -37,7 +37,6 @@ export default function AccountsSidebar({
   const saveEdit = async (account: Account) => {
     const trimmedName = editName.trim();
     const parsedApr = editApr === "" ? null : Number(editApr);
-
     const nameUnchanged = trimmedName === account.name;
     const aprUnchanged = parsedApr === (account.apr ?? null);
 
@@ -47,7 +46,6 @@ export default function AccountsSidebar({
     }
 
     await onEditAccount(account.id, trimmedName, parsedApr);
-
     setEditingId(null);
   };
 
@@ -57,12 +55,39 @@ export default function AccountsSidebar({
     setEditApr("");
   };
 
+  const totalBalance = accounts.reduce(
+    (sum, acc) => sum + (parseFloat(acc.balance as any) || 0),
+    0
+  );
+
   return (
     <div className="col-span-4 bg-white rounded shadow p-4 relative">
       <h2 className="text-lg font-semibold mb-4">Accounts</h2>
 
+      {/* "All" tab */}
+      <div
+        onClick={() => onSelectAccount(null)}
+        className={`flex justify-between items-center p-3 rounded border mb-2 cursor-pointer ${
+          selectedAccount === null
+            ? "bg-blue-50 border-l-4 border-blue-500"
+            : "hover:bg-gray-50 border-transparent"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {/* Logo as "A" */}
+          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium">
+            A
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium">All</span>
+            <span className="text-xs text-gray-500">{accounts.length} accounts</span>
+          </div>
+        </div>
+        <span className="text-sm text-gray-600">{totalBalance.toLocaleString()}</span>
+      </div>
+
       {accounts.length === 0 ? (
-        <p className="text-gray-500">No accounts linked yet.</p>
+        <p className="text-gray-500 mt-2">No accounts linked yet.</p>
       ) : (
         <ul className="space-y-2">
           {accounts.map((account) => {
@@ -72,59 +97,73 @@ export default function AccountsSidebar({
             return (
               <li
                 key={account.id}
-                className={`flex justify-between items-center p-3 rounded border relative ${isSelected ? "bg-blue-50 border-blue-500" : "hover:bg-gray-50 border-transparent"
-                  }`}
+                className={`flex justify-between items-center p-3 rounded border relative ${
+                  isSelected
+                    ? "bg-blue-50 border-l-4 border-blue-500"
+                    : "hover:bg-gray-50 border-transparent"
+                }`}
               >
                 {/* Account Info */}
                 <div
                   className="flex-1 cursor-pointer flex justify-between items-center"
                   onClick={() => onSelectAccount(account)}
                 >
-                  <div className="flex flex-col justify-center">
-                    {editingId === account.id ? (
-                      <div className="flex flex-col gap-2 w-full">
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="font-medium text-sm px-1 py-0.5 border rounded w-full"
-                        />
-
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="APR %"
-                          value={editApr}
-                          onChange={(e) => setEditApr(e.target.value)}
-                          className="text-xs px-1 py-0.5 border rounded w-24"
-                        />
-
-                        <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => saveEdit(account)}
-                            disabled={editing === account.id}
-                            className="px-3 py-1 bg-green-500 text-white rounded disabled:bg-gray-300"
-                          >
-                            {editing === account.id ? "Saving..." : "Save"}
-                          </button>
-
-                          <button
-                            onClick={cancelEdit}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    {account.logo ? (
+                      <img
+                        src={account.logo}
+                        alt={`${account.name} logo`}
+                        className="w-8 h-8 object-contain rounded"
+                      />
                     ) : (
-                      <span className="font-medium">{account.name}</span>
+                      <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-medium">
+                        {account.name[0] || "A"}
+                      </div>
                     )}
-                    {account.apr != null && (
-                      <span className="text-xs text-gray-500">
-                        Interest: {account.apr}%
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-500">{account.type}</span>
+
+                    <div className="flex flex-col">
+                      {editingId === account.id ? (
+                        <div className="flex flex-col gap-2 w-full">
+                          <input
+                            autoFocus
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="font-medium text-sm px-1 py-0.5 border rounded w-full"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="APR %"
+                            value={editApr}
+                            onChange={(e) => setEditApr(e.target.value)}
+                            className="text-xs px-1 py-0.5 border rounded w-24"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => saveEdit(account)}
+                              disabled={editing === account.id}
+                              className="px-3 py-1 bg-green-500 text-white rounded disabled:bg-gray-300"
+                            >
+                              {editing === account.id ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{account.name}</span>
+                      )}
+                      {account.apr != null && (
+                        <span className="text-xs text-gray-500">
+                          Interest: {account.apr}%
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500">{account.type}</span>
+                    </div>
                   </div>
                   <span className="text-sm text-gray-600">{account.balance.toLocaleString()}</span>
                 </div>
@@ -138,7 +177,6 @@ export default function AccountsSidebar({
                     }}
                     className="p-1 rounded hover:bg-gray-200 flex items-center justify-center"
                   >
-                    {/* Vertical three dots */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5 text-gray-600"

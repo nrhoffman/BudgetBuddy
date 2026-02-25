@@ -1,15 +1,16 @@
 import { useState } from "react";
 import type { Transaction } from "../../types/transaction";
 import { TRANSACTION_CATEGORY_KEYS, TRANSACTION_CATEGORY_MAP } from "../../types/transactionTypes";
-import { useAccounts } from "../../hooks/useAccounts";
+import { useFinancialDataContext } from "../../context/FinancialDataContext";
 
 type Props = {
   transaction: Transaction;
   accountId: string;
+  accountName?: string;
 };
 
 export default function TransactionCard({ transaction, accountId }: Props) {
-  const { editTransaction, editingTransaction } = useAccounts();
+  const { editTransaction, editingTransaction } = useFinancialDataContext();
   const [expanded, setExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -35,7 +36,7 @@ export default function TransactionCard({ transaction, accountId }: Props) {
 
     setPrimaryCategory(editPrimary.toUpperCase());
     setDetailedCategory(editDetailed.toUpperCase());
-    setConfidenceLevel("MANUAL"); // confirmed or manually fixed
+    setConfidenceLevel("MANUAL");
 
     setIsEditing(false);
   };
@@ -55,17 +56,37 @@ export default function TransactionCard({ transaction, accountId }: Props) {
         : "text-red-600";
     }
   };
-
   return (
     <li className="p-3 border rounded relative">
       {!isEditing ? (
         <div className="flex justify-between items-center">
-          <div onClick={() => setExpanded((prev) => !prev)} className="flex-1 cursor-pointer relative">
-            <div className="font-medium flex items-center gap-1">
-              {transaction.name}
+          <div
+            onClick={() => setExpanded((prev) => !prev)}
+            className="flex-1 cursor-pointer flex items-start gap-3"
+          >
+            {/* Logo */}
+            <div className="w-10 h-10 flex-shrink-0 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
+              {transaction.merchant_logo_url ? (
+                <img
+                  src={transaction.merchant_logo_url}
+                  alt={transaction.merchant_name || transaction.name}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-xs text-gray-400">
+                  {transaction.name.charAt(0).toUpperCase()}
+                </span>
+              )}
             </div>
-            <div className="text-sm text-gray-500">
-              {primaryCategory} | {new Date(transaction.date).toLocaleDateString()}
+
+            {/* Text Block */}
+            <div className="flex flex-col">
+              <div className="font-medium">
+                {transaction.name}
+              </div>
+              <div className="text-sm text-gray-500">
+                {primaryCategory} | {new Date(transaction.date).toLocaleDateString()}
+              </div>
             </div>
           </div>
               {showLowConfidenceFlag && (

@@ -21,6 +21,7 @@ export function useAccounts() {
       if (res.ok) {
         const data = await res.json();
         setAccounts(data.accounts);
+        return data.accounts;
       }
     } catch (err) {
       console.error("Error fetching accounts:", err);
@@ -155,6 +156,7 @@ export function useAccounts() {
 
   return {
     accounts,
+    setAccounts,
     loading,
     fetchAccounts,
     deleteAccount,

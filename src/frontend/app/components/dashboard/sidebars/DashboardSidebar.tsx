@@ -20,7 +20,7 @@ export default function DashboardSidebar() {
   };
 
   return (
-    <aside className="w-64 h-screen p-6 bg-white shadow-lg flex flex-col">
+    <aside className="w-64 bg-white shadow-lg flex flex-col sticky top-0 h-screen p-6 overflow-y-auto">
       <nav className="flex-1">
         <ul className="space-y-3">
           <li>

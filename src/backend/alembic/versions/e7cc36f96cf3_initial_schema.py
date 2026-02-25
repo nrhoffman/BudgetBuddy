@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: bd3022d6257b
+Revision ID: e7cc36f96cf3
 Revises: 
-Create Date: 2026-02-11 09:58:34.765186
+Create Date: 2026-02-21 08:56:30.865116
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'bd3022d6257b'
+revision: str = 'e7cc36f96cf3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -35,6 +35,7 @@ def upgrade() -> None:
     sa.Column('provider', sa.String(length=50), nullable=False),
     sa.Column('institution_id', sa.String(length=100), nullable=False),
     sa.Column('institution_name', sa.String(length=100), nullable=True),
+    sa.Column('institution_logo', sa.Text(), nullable=True),
     sa.Column('access_token', sa.String(), nullable=False),
     sa.Column('item_id', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -70,38 +71,70 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('type', sa.Enum('DEPOSITORY', 'CREDIT', 'BROKERAGE', 'INVESTMENT', 'LOAN', 'OTHER', name='account_type'), nullable=False),
     sa.Column('subtype', sa.Enum('CHECKING', 'SAVINGS', 'MONEY_MARKET', 'CASH_MANAGEMENT', 'PREPAID', 'CD', 'EBT', 'HEALTH_SAVINGS', 'CREDIT_CARD', 'AUTO_LOAN', 'STUDENT_LOAN', 'MORTGAGE', 'LINE_OF_CREDIT', 'HOME_EQUITY', 'OVERDRAFT', 'IRA', 'SEP_IRA', 'ROTH_IRA', 'SIMPLE_IRA', '_401K', '_403B', '_457B', '_529', 'OTHER', name='account_subtype'), nullable=True),
+    sa.Column('logo', sa.Text(), nullable=True),
+    sa.Column('institution_id', sa.String(), nullable=False),
     sa.Column('balance', sa.Numeric(precision=12, scale=2), nullable=False),
+    sa.Column('available_balance', sa.Numeric(precision=12, scale=2), nullable=True),
+    sa.Column('credit_limit', sa.Numeric(precision=12, scale=2), nullable=True),
+    sa.Column('iso_currency_code', sa.String(length=3), nullable=True),
+    sa.Column('unofficial_currency_code', sa.String(length=3), nullable=True),
+    sa.Column('holder_category', sa.String(length=20), nullable=True),
     sa.Column('initial_balance', sa.Numeric(precision=12, scale=2), nullable=False),
     sa.Column('initial_import_completed_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('apr', sa.Numeric(precision=5, scale=2), nullable=True),
     sa.Column('user_id', sa.String(), nullable=False),
-    sa.Column('apr', sa.Numeric(precision=4, scale=2), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('transactions',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('account_id', sa.String(), nullable=False),
-    sa.Column('account_type', sa.String(), nullable=False),
+    sa.Column('account_type', sa.String(), nullable=True),
     sa.Column('amount', sa.Numeric(precision=12, scale=2), nullable=False),
-    sa.Column('date', sa.DateTime(), nullable=False),
     sa.Column('balance_after', sa.Numeric(precision=12, scale=2), nullable=True),
+    sa.Column('iso_currency_code', sa.String(), nullable=True),
+    sa.Column('unofficial_currency_code', sa.String(), nullable=True),
+    sa.Column('date', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('authorized_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('authorized_datetime', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
     sa.Column('merchant_name', sa.String(), nullable=True),
+    sa.Column('merchant_entity_id', sa.String(), nullable=True),
+    sa.Column('merchant_website', sa.String(), nullable=True),
+    sa.Column('merchant_logo_url', sa.String(), nullable=True),
+    sa.Column('merchant_confidence_level', sa.String(), nullable=True),
     sa.Column('category_primary', sa.String(), nullable=True),
     sa.Column('category_detailed', sa.String(), nullable=True),
     sa.Column('category_confidence_level', sa.String(), nullable=True),
+    sa.Column('plaid_category_version', sa.String(), nullable=True),
+    sa.Column('payment_channel', sa.String(), nullable=True),
+    sa.Column('transaction_type', sa.String(), nullable=True),
+    sa.Column('transaction_code', sa.String(), nullable=True),
+    sa.Column('location_city', sa.String(), nullable=True),
+    sa.Column('location_region', sa.String(), nullable=True),
+    sa.Column('location_country', sa.String(), nullable=True),
+    sa.Column('location_lat', sa.Float(), nullable=True),
+    sa.Column('location_lon', sa.Float(), nullable=True),
+    sa.Column('store_number', sa.String(), nullable=True),
+    sa.Column('is_ach', sa.Boolean(), nullable=True),
+    sa.Column('is_transfer', sa.Boolean(), nullable=True),
+    sa.Column('is_internal_transfer', sa.Boolean(), nullable=True),
+    sa.Column('is_recurring', sa.Boolean(), nullable=True),
     sa.Column('pending', sa.Boolean(), nullable=True),
-    sa.Column('iso_currency_code', sa.String(), nullable=True),
-    sa.Column('unofficial_currency_code', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_transactions_account_id'), 'transactions', ['account_id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_transactions_account_id'), table_name='transactions')
     op.drop_table('transactions')
     op.drop_table('accounts')
     op.drop_table('users')

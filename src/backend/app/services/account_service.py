@@ -205,6 +205,33 @@ class AccountService:
             )
             raise DatabaseError("Failed to delete account") from exc
 
+    def undelete_accounts(self, institution_id: str, user_id: str) -> int:
+        """
+        Undelete all soft-deleted accounts for a given institution and user.
+
+        Args:
+            institution_id (str): The institution ID.
+            user_id (str): The user ID.
+
+        Returns:
+            int: Number of accounts that were undeleted.
+        """
+        try:
+            undeleted_count = self.account_repo.undelete_accounts(
+                institution_id,
+                user_id
+            )
+            return undeleted_count
+        except Exception as e:
+
+            self.logger.error(
+                "Failed to undelete accounts for user %s and institution %s: %s",
+                user_id,
+                institution_id,
+                str(e),
+            )
+            raise
+
     # ---------------------------
     # Transaction operations
     # ---------------------------

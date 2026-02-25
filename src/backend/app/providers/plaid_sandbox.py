@@ -16,14 +16,16 @@ from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+from plaid.model.link_token_create_request_update import LinkTokenCreateRequestUpdate
 from plaid.model.item_public_token_exchange_request import (
     ItemPublicTokenExchangeRequest,
 )
+from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
-from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
 from app.mappers.transaction_mapper import map_plaid_transaction, sort_transactions
+from app.mappers.account_mapper import map_plaid_account
 from app.mappers.account_index import AccountIndex
 from app.models.transaction import Transaction
 from app.models.account import Account
@@ -79,6 +81,27 @@ class PlaidSandbox(BankingProvider):
         )
         response = self.client.link_token_create(request)
         return response.link_token
+    
+    def create_update_link_token(self, user_id: str, access_token: str) -> str:
+        request = LinkTokenCreateRequest(
+            user=LinkTokenCreateRequestUser(client_user_id=user_id),
+            client_name="Budget Buddy",
+            products=[
+                Products("transactions"),
+                Products("auth"),
+                Products("liabilities"),
+                Products("investments"),
+            ],
+            country_codes=[CountryCode("US")],
+            language="en",
+            access_token=access_token,
+            update=LinkTokenCreateRequestUpdate(
+                account_selection_enabled=True
+            )
+        )
+
+        response = self.client.link_token_create(request)
+        return response.link_token
 
     def exchange_public_token(self, public_token: str) -> str:
         """
@@ -94,49 +117,27 @@ class PlaidSandbox(BankingProvider):
         response = self.client.item_public_token_exchange(request)
         return response
 
-    def get_accounts(self, access_token: str) -> Any:
-        """
-        Retrieve raw account balance data from the provider.
+    def get_accounts(self, access_token: str,
+                     institution_id: str,
+                     institution_logo: str | None = None
+                     ) -> dict[str, Any]:
 
-        This method calls the provider's accounts balance endpoint and returns
-        the unmodified response payload. Mapping to domain Account models and
-        persistence are handled by higher-level services.
-
-        Args:
-            access_token (str): Provider access token for the linked institution.
-
-        Returns:
-            Any: Raw provider response containing account and balance data.
-        """
         request = AccountsBalanceGetRequest(access_token=access_token)
         res = self.client.accounts_balance_get(request)
-        return res
 
-    def get_transactions(
-        self, access_token: str, start_date: str, end_date: str
-    ) -> Any:
-        """
-        Retrieve raw transaction data from the provider for a given date range.
+        accounts = [
+            map_plaid_account(
+                acc,
+                institution_id=institution_id,
+                institution_logo=institution_logo
+            )
+            for acc in res.accounts
+        ]
 
-        This method calls the provider's transactions endpoint and returns the
-        unmodified response payload. Transaction mapping, filtering, sorting,
-        and persistence are handled by higher-level services.
-
-        Args:
-            access_token (str): Provider access token for the linked institution.
-            start_date (str): Start date (YYYY-MM-DD) for the transaction query.
-            end_date (str): End date (YYYY-MM-DD) for the transaction query.
-
-        Returns:
-            Any: Raw provider response containing transaction data.
-        """
-        request = TransactionsGetRequest(
-            access_token=access_token,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        res = self.client.transactions_get(request)
-        return res
+        return {
+            "accounts": accounts,
+            "raw_pages": res.to_dict()
+        }
 
     def get_transactions_sync(
         self,
@@ -198,3 +199,40 @@ class PlaidSandbox(BankingProvider):
             "next_cursor": cursor,
             "raw": raw_pages
         }
+
+    def get_institution_by_id(self, institution_id: str) -> dict:
+        """
+        Retrieve institution metadata from Plaid by institution ID.
+
+        This method calls Plaid's `/institutions/get_by_id` endpoint to fetch
+        metadata for a specific financial institution, including optional
+        fields such as the institution logo, primary brand color, and website URL.
+
+        The returned logo (if present) is Base64-encoded and must be decoded
+        before being stored or served by the application.
+
+        Args:
+            institution_id (str): The Plaid institution ID (e.g., "ins_3").
+
+        Returns:
+            dict: A dictionary representation of the institution object.
+                Returns an empty dictionary if no institution_id is provided.
+
+        Notes:
+            - This method does not require an access token.
+            - The response includes optional metadata only if
+            `include_optional_metadata=True`.
+            - Institution logos are returned as Base64-encoded PNG images.
+        """
+        if not institution_id:
+            return {}
+
+        inst_request = InstitutionsGetByIdRequest(
+            institution_id=institution_id,
+            country_codes=[CountryCode("US")],
+            options={"include_optional_metadata": True},
+        )
+
+        inst_response = self.client.institutions_get_by_id(inst_request)
+
+        return inst_response.institution.to_dict()

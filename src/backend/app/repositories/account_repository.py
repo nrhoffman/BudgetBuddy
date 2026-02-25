@@ -6,7 +6,7 @@ associated transactions. It is responsible for persistence, balance
 recalculation, and maintaining transactional integrity.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -69,6 +69,17 @@ class AccountRepository:
             )
 
         return orm_to_domain_account(orm)
+    
+    def get_all_accounts(self, user_id: str, institution_id:str) -> list[Account]:
+        orms = (
+            self.session.query(AccountORM)
+            .filter(
+                AccountORM.institution_id == institution_id,
+                AccountORM.user_id == user_id
+            )
+            .all()
+        )
+        return [orm_to_domain_account(orm) for orm in orms]
 
     def add_account(self, account: Account, user_id: str) -> None:
         """
@@ -83,7 +94,18 @@ class AccountRepository:
             name=account.name,
             type=account.type,
             subtype=account.subtype,
+            logo=account.logo,
+            institution_id=account.institution_id,
+
             balance=account.balance,
+            available_balance=account.available_balance,
+            credit_limit=account.credit_limit,
+
+            iso_currency_code=account.iso_currency_code,
+            unofficial_currency_code=account.unofficial_currency_code,
+
+            holder_category=account.holder_category,
+
             initial_balance=account.balance,
             user_id=user_id,
         )
@@ -155,7 +177,35 @@ class AccountRepository:
                 f"Account {account_id} not found for user {user_id}"
             )
 
-        self.session.delete(orm)
+        orm.is_deleted = True
+        orm.deleted_at = datetime.now(timezone.utc)
+    
+    def undelete_account(
+            self,
+            account_id: str,
+            user_id: str
+    ):
+        """
+        Undelete all soft-deleted accounts for a given institution and user.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            institution_id (str): The linked institution ID.
+            user_id (str): The user ID.
+        """
+
+        acc = (
+            self.session.query(AccountORM)
+            .filter(
+                AccountORM.user_id == user_id,
+                AccountORM.id == account_id,
+                AccountORM.is_deleted == True,
+            )
+            .first()
+        )
+
+        acc.is_deleted = False
+        acc.deleted_at = None
 
     def delete_all_accounts(self, user_id: str) -> None:
         """
@@ -333,7 +383,10 @@ class AccountRepository:
         """
         orms = (
             self.session.query(AccountORM)
-            .filter(AccountORM.user_id == user_id)
+            .filter(
+                AccountORM.is_deleted == False,
+                AccountORM.user_id == user_id
+            )
             .options(joinedload(AccountORM.transactions))
             .all()
         )

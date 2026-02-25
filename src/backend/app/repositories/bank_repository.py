@@ -60,12 +60,14 @@ class BankRepository:
             token.access_token = exchange_token.public_token
             token.item_id = item_id
             token.institution_name = exchange_token.institution_name
+            token.institution_logo = exchange_token.institution_logo
         else:
             token = BankItemTokenORM(
                 user_id=user_id,
                 provider=provider,
                 institution_id=exchange_token.institution_id,
                 institution_name=exchange_token.institution_name,
+                institution_logo=exchange_token.institution_logo,
                 access_token=exchange_token.public_token,
                 item_id=item_id,
             )
@@ -175,11 +177,13 @@ class BankRepository:
             select(
                 BankItemTokenORM.institution_id,
                 BankItemTokenORM.institution_name,
+                BankItemTokenORM.institution_logo,
             )
             .where(BankItemTokenORM.user_id == user_id)
             .group_by(
                 BankItemTokenORM.institution_id,
-                BankItemTokenORM.institution_name
+                BankItemTokenORM.institution_name,
+                BankItemTokenORM.institution_logo,
             )
         ).all()
 
@@ -187,6 +191,7 @@ class BankRepository:
             {
                 "institution_id": inst.institution_id,
                 "institution_name": inst.institution_name,
+                "institution_logo": inst.institution_logo,
             }
             for inst in institutions
         ]

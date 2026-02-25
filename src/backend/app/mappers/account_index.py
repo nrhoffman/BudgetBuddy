@@ -56,9 +56,10 @@ class AccountIndex:
             account_id (str): The provider-specific account identifier.
 
         Returns:
-            AccountType: The type of the account associated with the ID.
-
-        Raises:
-            KeyError: If the account ID is not present in the index.
+            AccountType: The type of the account associated with the ID,
+            or None if the account ID is not present in the index.
         """
-        return self._by_id[account_id].type
+        acct = self._by_id.get(account_id)
+        if acct is None:
+            return None
+        return acct.type

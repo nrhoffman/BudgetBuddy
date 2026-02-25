@@ -7,7 +7,7 @@ Persists access tokens and metadata for third-party banking providers.
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -42,6 +42,11 @@ class BankItemTokenORM(Base):
 
     institution_name: Mapped[str | None] = mapped_column(
         String(100),
+        nullable=True,
+    )
+
+    institution_logo: Mapped[str] = mapped_column(
+        Text,
         nullable=True,
     )
 

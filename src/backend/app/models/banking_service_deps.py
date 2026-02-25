@@ -10,7 +10,6 @@ repositories, and external providers into a single container.
 from dataclasses import dataclass
 
 from app.providers.plaid_sandbox import PlaidSandbox
-from app.repositories.account_repository import AccountRepository
 from app.repositories.bank_repository import BankRepository
 from app.repositories.raw_provider_repository import RawProviderRepository
 from app.services.account_service import AccountService
@@ -24,8 +23,6 @@ class BankingServiceDependencies:
     Attributes:
         account_service (AccountService): Service for managing accounts
         and transactions.
-        account_repo (AccountRepository): Repository for account persistence
-        operations.
         bank_repo (BankRepository): Repository for managing bank tokens and
         institution data.
         raw_provider_repo (RawProviderRepository): Repository for storing raw
@@ -38,7 +35,6 @@ class BankingServiceDependencies:
     passed around as a single object.
     """
     account_service: AccountService
-    account_repo: AccountRepository
     bank_repo: BankRepository
     raw_provider_repo: RawProviderRepository
     banking_provider: PlaidSandbox

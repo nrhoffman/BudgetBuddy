@@ -1,21 +1,30 @@
 # Project Backlog
 
 ## To Do
-- [ ] Have a way to get raw data first before hitting plaid
-- [ ] If user is adding an account back, get raw data from database first
+- [x] Use update mode for getting additional accounts (might work?)
+- [ ] Set up cloud with all services
 - [ ] Replace the shit popup windows
-- [ ] Verify if link token needs to be created upon each page refresh
-- [ ] Encrypt public tokens
 - [ ] Verify backend processes are multi-user
 - [ ] Optionally set the description as a pattern in a transaction_rule table
-- [ ] Redo Database Tables - Want more data from raw transactions
 - [ ] Currently modified syncs rewrites Manually modified categories and confidence
 
 ## In Progress
-- [ ] Create a basic settings page
-- [ ] Getting snapshot occurs too often - make refresh manual / on schedule
+- [ ] Switch from calculating account balances to using acc api
+- [ ] Incorporate pending transactions and available balance
+- [ ] Accounts should be retrieved separate from transactions. Transactions should be paginated
+- [ ] Add a loading for when bank accounts are linking
+- [ ] Encrypt public tokens
 
 ## Done
+- [x] Fix some balance and holder account data being null
+- [x] Switch to soft delete for accounts
+- [x] Replace transactions/get with just transaction/sync <- test
+- [x] link token generates when plaid button clicked
+- [x] Getting snapshot occurs too often - make refresh manual / once a session
+- [x] When adding accounts, add institution logo to Account and BankToken
+- [x] Create a basic settings page
+- [x] Use logo from transactions for transaction table
+- [x] Get more data from transactions and accounts
 - [x] Need an option to delete all user data including raw
 - [x] Password rules
 - [x] Verify balances work correctly credit/loan vs others
@@ -46,7 +55,6 @@
 - [x] Changed Plaid category from legacy to modern
 
 ## Ideas
-- Something to look at - Do unselected bank accounts get synced through plaid?
 - Show income a month and year - break down by sources
 - Show spending trends graph by category
 - Make a budget

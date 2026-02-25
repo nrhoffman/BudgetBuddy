@@ -102,14 +102,12 @@ def get_banking_service(db: Session = Depends(get_db)) -> BankingService:
         bank_repo=BankRepository(db),
         txn_repo=TransactionRepository(db)
     )
-    account_repo = AccountRepository(db)
     bank_repo = BankRepository(db)
     raw_provider_repo = RawProviderRepository(db)
     banking_provider = PlaidSandbox()
 
     deps = BankingServiceDependencies(
         account_service=account_service,
-        account_repo=account_repo,
         bank_repo=bank_repo,
         raw_provider_repo=raw_provider_repo,
         banking_provider=banking_provider

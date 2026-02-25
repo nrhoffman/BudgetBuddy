@@ -66,24 +66,53 @@ class UpdateAccount(BaseModel):
 
 
 class Account(BaseModel):
-    """Domain model for a bank account."""
+    """
+    Account domain model.
+
+    Defines the core Account entity used throughout the banking domain layer.
+    This model represents a financial account linked through an external
+    banking provider and persisted within the application.
+
+    The Account model encapsulates:
+
+    - Core identity information (id, name, type, subtype)
+    - Balance and credit details
+    - Currency metadata
+    - Interest rate information (APR)
+    - System-level tracking fields for import state
+    - Associated transaction records
+
+    This model is intentionally provider-agnostic and serves as the canonical
+    representation of an account within the application domain.
+    """
     id: str
     name: str
     type: AccountType
     subtype: Optional[AccountSubType]
+    logo: Optional[str] = None
+    institution_id: Optional[str] = None
+
+    # Balances
     balance: Decimal
+    available_balance: Optional[Decimal] = None
+    credit_limit: Optional[Decimal] = None
+
+    # Currency
+    iso_currency_code: Optional[str] = None
+    unofficial_currency_code: Optional[str] = None
+
+    # Metadata
+    holder_category: Optional[str] = None
+    apr: Optional[Decimal] = None
+
+    # System
     initial_balance: Optional[Decimal] = None
     initial_import_completed_at: Optional[datetime] = None
-    transactions: list[Transaction] = Field(default_factory=list)
-    apr: Optional[Decimal] = None
-    """
-    Annual Percentage Rate (APR) or interest rate for the account.
 
-    - Depository: interest earned (e.g., savings, CD)
-    - Credit: interest charged (e.g., credit cards)
-    - Loan: interest charged (e.g., mortgages, auto loans)
-    - Other accounts: can be None
-    """
+    transactions: list[Transaction] = Field(default_factory=list)
+
+    is_deleted: Optional[bool] = None
+    deleted_at: Optional[datetime] = None
 
 
 def parse_account_type(value: Any) -> AccountType:

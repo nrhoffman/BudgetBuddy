@@ -36,6 +36,19 @@ def create_link_token(
     return {"link_token": link_token}
 
 
+@router.post("/create-update-link-token", response_model=dict[str, str])
+def create_update_link_token(
+    institution_id: str = Query(...),
+    banking_service: BankingService = Depends(get_banking_service),
+    current_user=Depends(get_current_user),
+) -> dict:
+    link_token = banking_service.create_bank_update_link_token(
+        current_user.id,
+        institution_id,
+    )
+    return {"link_token": link_token}
+
+
 @router.post("/exchange-token", response_model=dict[str, str])
 def exchange_token(
     req: ExchangeToken,
@@ -61,9 +74,8 @@ def exchange_token(
     )
     return {"message": "Bank accounts synced"}
 
-
-@router.post("/get-accounts", response_model=dict[str, Any])
-def get_accounts(
+@router.post("/sync-institution-accounts", response_model=dict[str, Any])
+def sync_institution_accounts(
     institution_id: str = Query(...),
     banking_service: BankingService = Depends(get_banking_service),
     current_user=Depends(get_current_user),
@@ -78,7 +90,7 @@ def get_accounts(
     Returns:
         Dictionary with account information.
     """
-    accounts = banking_service.add_bank_accounts(
+    accounts = banking_service.sync_bank_accounts(
         user_id=current_user.id,
         institution_id=institution_id
     )

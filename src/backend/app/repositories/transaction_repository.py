@@ -74,11 +74,44 @@ class TransactionRepository:
                 "amount": abs(tx.amount),
                 "date": tx.date,
                 "balance_after": tx.balance_after,
+
+                # Core
                 "name": tx.name,
                 "merchant_name": tx.merchant_name,
+                "merchant_entity_id": tx.merchant_entity_id,
+                "merchant_website": tx.merchant_website,
+                "merchant_logo_url": tx.merchant_logo_url,
+                "merchant_confidence_level": tx.merchant_confidence_level,
+
+                # Categorization
                 "category_primary": tx.category_primary,
                 "category_detailed": tx.category_detailed,
                 "category_confidence_level": tx.category_confidence_level,
+                "plaid_category_version": (
+                    tx.plaid_category_version.value
+                    if tx.plaid_category_version
+                    else None
+                ),
+
+                # Payment metadata
+                "payment_channel": tx.payment_channel,
+                "transaction_type": tx.transaction_type,
+                "transaction_code": tx.transaction_code,
+
+                # Location
+                "location_city": tx.location_city,
+                "location_region": tx.location_region,
+                "location_country": tx.location_country,
+                "location_lat": tx.location_lat,
+                "location_lon": tx.location_lon,
+                "store_number": tx.store_number,
+
+                # Flags
+                "is_ach": tx.is_ach,
+                "is_transfer": tx.is_transfer,
+                "is_internal_transfer": tx.is_internal_transfer,
+                "is_recurring": tx.is_recurring,
+
                 "pending": tx.pending,
                 "iso_currency_code": tx.iso_currency_code,
                 "unofficial_currency_code": tx.unofficial_currency_code,
@@ -93,12 +126,35 @@ class TransactionRepository:
                 "amount": stmt.excluded.amount,
                 "date": stmt.excluded.date,
                 "balance_after": stmt.excluded.balance_after,
+
                 "name": stmt.excluded.name,
                 "merchant_name": stmt.excluded.merchant_name,
+                "merchant_entity_id": stmt.excluded.merchant_entity_id,
+                "merchant_website": stmt.excluded.merchant_website,
+                "merchant_logo_url": stmt.excluded.merchant_logo_url,
+                "merchant_confidence_level": stmt.excluded.merchant_confidence_level,
+
                 "category_primary": stmt.excluded.category_primary,
                 "category_detailed": stmt.excluded.category_detailed,
-                "category_confidence_level":
-                    stmt.excluded.category_confidence_level,
+                "category_confidence_level": stmt.excluded.category_confidence_level,
+                "plaid_category_version": stmt.excluded.plaid_category_version,
+
+                "payment_channel": stmt.excluded.payment_channel,
+                "transaction_type": stmt.excluded.transaction_type,
+                "transaction_code": stmt.excluded.transaction_code,
+
+                "location_city": stmt.excluded.location_city,
+                "location_region": stmt.excluded.location_region,
+                "location_country": stmt.excluded.location_country,
+                "location_lat": stmt.excluded.location_lat,
+                "location_lon": stmt.excluded.location_lon,
+                "store_number": stmt.excluded.store_number,
+
+                "is_ach": stmt.excluded.is_ach,
+                "is_transfer": stmt.excluded.is_transfer,
+                "is_internal_transfer": stmt.excluded.is_internal_transfer,
+                "is_recurring": stmt.excluded.is_recurring,
+
                 "pending": stmt.excluded.pending,
                 "iso_currency_code": stmt.excluded.iso_currency_code,
                 "unofficial_currency_code": stmt.excluded.unofficial_currency_code,

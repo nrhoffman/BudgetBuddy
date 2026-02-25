@@ -1,59 +1,44 @@
-import { useState, useEffect, useCallback} from "react";
+"use client";
+
+import { useState, useCallback } from "react";
 
 export interface Institution {
   institution_id: string;
   institution_name: string;
+  institution_logo?: string;
 }
 
 export function useInstitutions() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchInstitutions = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return setLoading(false);
+  const fetchInstitutions = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return [];
 
-      try {
-        const res = await fetch("/api/accounts/get-institutions", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/accounts/get-institutions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        const data: Institution[] = await res.json();
-        setInstitutions(data);
-      } catch (err) {
-        console.error("Failed to fetch institutions", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (!res.ok) throw new Error("Failed to fetch institutions");
 
-    fetchInstitutions();
+      const data: Institution[] = await res.json();
+      setInstitutions(data);
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch institutions", err);
+      return [];
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-    const getAccountsForInstitution = useCallback(
-    async (institution_id: string) => {
-      const token = localStorage.getItem("token");
-      if (!token) return null;
-
-      try {
-        const res = await fetch(`/api/bank/get-accounts?institution_id=${institution_id}`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch accounts");
-        }
-
-        return await res.json();
-      } catch (err) {
-        console.error("Failed to fetch accounts", err);
-        return null;
-      }
-    },
-    []);
-
-  return { institutions, loading, getAccountsForInstitution };
+  return {
+    institutions,
+    setInstitutions,
+    loading,
+    fetchInstitutions,
+  };
 }

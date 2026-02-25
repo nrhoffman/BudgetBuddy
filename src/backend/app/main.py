@@ -7,8 +7,10 @@ It also sets up centralized exception handlers to return structured JSON
 responses for known application-level errors.
 """
 
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.exceptions import (
     AppError,
@@ -23,6 +25,9 @@ from app.exceptions import (
 )
 from app.routes import auth, accounts, bank, user
 
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+
 app = FastAPI(title="BudgetBuddy API")
 
 app.include_router(auth.router)
@@ -30,7 +35,7 @@ app.include_router(accounts.router)
 app.include_router(bank.router)
 app.include_router(user.router)
 
-
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.exception_handler(ValidationError)
 async def validation_handler(_request: Request, exc: ValidationError):

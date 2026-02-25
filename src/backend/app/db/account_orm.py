@@ -8,7 +8,7 @@ user ownership.
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -38,7 +38,33 @@ class AccountORM(Base):
         nullable=True,
     )
 
-    balance: Mapped[float] = mapped_column(Numeric(12, 2))
+    logo: Mapped[str] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    institution_id: Mapped[str] = mapped_column(String)
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    available_balance: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    credit_limit: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    iso_currency_code: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    unofficial_currency_code: Mapped[str | None] = mapped_column(
+        String(3),
+        nullable=True,
+    )
+
+    holder_category: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
 
     initial_balance: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
@@ -51,6 +77,8 @@ class AccountORM(Base):
         server_default=func.now(),  # pylint: disable=not-callable
     )
 
+    apr: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id"),
         nullable=False,
@@ -62,4 +90,13 @@ class AccountORM(Base):
         cascade="all, delete-orphan",
     )
 
-    apr: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

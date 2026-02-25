@@ -66,26 +66,6 @@ class BankingProvider(ABC):
         """
 
     @abstractmethod
-    def get_transactions(
-        self, access_token: str, start_date: str, end_date: str
-    ) -> list[Transaction]:
-        """
-        Fetch transactions for an account within a specified date range.
-
-        Args:
-            access_token (str): Plaid access token for the user.
-            start_date (str): Start date (YYYY-MM-DD) for transactions.
-            end_date (str): End date (YYYY-MM-DD) for transactions.
-
-        Returns:
-            list[Transaction]: List of mapped Transaction domain models.
-
-        Raises:
-            ApiException: If the Plaid API call fails.
-            Exception: For any unexpected errors.
-        """
-
-    @abstractmethod
     def get_transactions_sync(
         self,
         access_token: str,
@@ -107,4 +87,30 @@ class BankingProvider(ABC):
         Raises:
             ApiException: If the Plaid API call fails.
             Exception: For any unexpected errors.
+        """
+
+    @abstractmethod
+    def get_institution_by_id(self, institution_id: str) -> dict:
+        """
+        Retrieve institution metadata from Plaid by institution ID.
+
+        This method calls Plaid's `/institutions/get_by_id` endpoint to fetch
+        metadata for a specific financial institution, including optional
+        fields such as the institution logo, primary brand color, and website URL.
+
+        The returned logo (if present) is Base64-encoded and must be decoded
+        before being stored or served by the application.
+
+        Args:
+            institution_id (str): The Plaid institution ID (e.g., "ins_3").
+
+        Returns:
+            dict: A dictionary representation of the institution object.
+                Returns an empty dictionary if no institution_id is provided.
+
+        Notes:
+            - This method does not require an access token.
+            - The response includes optional metadata only if
+            `include_optional_metadata=True`.
+            - Institution logos are returned as Base64-encoded PNG images.
         """
